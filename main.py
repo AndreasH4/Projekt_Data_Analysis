@@ -1,6 +1,7 @@
 import praw
 import pandas as pd
-
+import time
+import os
 
 # --------------------- CONSTANCE VARIABLES -----------------------------
 CLIENT_ID = ''
@@ -8,9 +9,11 @@ CLIENT_SECRET = ''
 USER_AGENT = 'Projekt: Data Analysis'
 
 
+
 def getDataFromReddit(subreddit):
   data = []
 
+  # Scraping posts and Comments
   for post in subreddit.top(time_filter='year', limit= 10): 
     data.append({
         'post_id': post.id,
@@ -24,7 +27,9 @@ def getDataFromReddit(subreddit):
         'url': post.url
     })
 
+    # Check if the post has comments
     if post.num_comments > 0:
+      # Scraping comments for each post
       post.comments.replace_more(limit=5)
       for comment in post.comments.list():
         data.append({
@@ -39,29 +44,53 @@ def getDataFromReddit(subreddit):
           'total_comments': 0,
           'Post_URL': None
         })
+        # time.sleep(2)
+    time.sleep(2)
   
   munich_data = pd.DataFrame(data)
   return munich_data
 
 
-
 def main():
-  reddit = praw.Reddit(client_id=CLIENT_ID,
-                       client_secret=CLIENT_SECRET,
-                       user_agent=USER_AGENT)
+  munich_data_path = '/home/user/Development/Projekt_Data_Analysis/Reddit/munich_reddit_data.csv'
 
-  subreddit = reddit.subreddit('munich')
+  # Only if munich_reddit_data.csv is not present, extract data from Reddit via PRAW
+  # and create/write it to munich_reddit_data.csv
+  if not os.path.exists(munich_data_path):
+    print('PRAW initialized')
+    # Initialize Reddit instance
+    reddit = praw.Reddit(client_id=CLIENT_ID,
+                        client_secret=CLIENT_SECRET,
+                        user_agent=USER_AGENT)
 
-  
+    # Subreddit to scrape
+    subreddit = reddit.subreddit('munich')
+    # subreddit = reddit.subreddit('fitness')
+    
 
-  munich_data = getDataFromReddit(subreddit)
-  munich_data.to_csv('munich_reddit_data.csv', index=False, encoding='utf-8-sig')
+    munich_data = getDataFromReddit(subreddit)
+    # Write data to munich_reddit_data.csv
+    munich_data.to_csv(munich_data_path, index=False, encoding='utf-8-sig')
 
-  return munich_data
+  # Read Reddit-Data from csv-file
+  munich_data_df = pd.read_csv(munich_data_path)
+  # print(munich_data_df[['title', 'text']])
+
+  # Replace NaN values with empty strings
+  munich_data_df['title'] = munich_data_df['title'].fillna('')
+  munich_data_df['text'] = munich_data_df['text'].fillna('')
+
+  # Combine title and text for theme examination
+  munich_data_df['full_text'] = munich_data_df['title'] + " " + munich_data_df['text']
+  print(munich_data_df['full_text'])
+
+
+
+  return munich_data_df
 
 
 if __name__=='__main__':
   result = main()
 
 
-print(result)
+# print(result)
