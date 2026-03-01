@@ -2,11 +2,19 @@ import praw
 import pandas as pd
 import time
 import os
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
 
 # --------------------- CONSTANCE VARIABLES -----------------------------
 CLIENT_ID = ''
 CLIENT_SECRET = ''
 USER_AGENT = 'Projekt: Data Analysis'
+
+# -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
+nltk.download('punkt')
+nltk.download('stopwords')
 
 
 
@@ -50,9 +58,32 @@ def getDataFromReddit(subreddit):
   munich_data = pd.DataFrame(data)
   return munich_data
 
+def process(text):
+  # Replace NaN values with empty strings
+  if pd.isna(text):
+    return ""
+  
+  text = text.lower()
+
+  text = re.sub(r'http\S+', '', text)
+  # remove literal \n
+  # text = text.replace('\n', '')
+  tokens = word_tokenize(text)
+
+  stop_words_en = set(stopwords.words('english'))
+  stop_words_de = set(stopwords.words('german'))
+  all_stopwords = stop_words_en.union(stop_words_de)
+
+  clean_tokens = [w for w in tokens if w.isalpha() and w not in all_stopwords]
+  clean_tokens_string = " ".join(clean_tokens)
+
+
+  return clean_tokens_string
+
 
 def main():
   munich_data_path = '/home/user/Development/Projekt_Data_Analysis/Reddit/munich_reddit_data.csv'
+  output_debug_path = '/home/user/Development/Projekt_Data_Analysis/Reddit/debug.csv'
 
   # Only if munich_reddit_data.csv is not present, extract data from Reddit via PRAW
   # and create/write it to munich_reddit_data.csv
@@ -77,13 +108,21 @@ def main():
   # print(munich_data_df[['title', 'text']])
 
   # Replace NaN values with empty strings
-  munich_data_df['title'] = munich_data_df['title'].fillna('')
-  munich_data_df['text'] = munich_data_df['text'].fillna('')
+  # munich_data_df['title'] = munich_data_df['title'].fillna('')
+  # munich_data_df['text'] = munich_data_df['text'].fillna('')
+
+  munich_data_df['title'] = munich_data_df['title']
+  munich_data_df['text'] = munich_data_df['text']
 
   # Combine title and text for theme examination
   munich_data_df['full_text'] = munich_data_df['title'] + " " + munich_data_df['text']
   print(munich_data_df['full_text'])
 
+  munich_data_df['clean_text'] = munich_data_df['full_text'].apply(process)
+  print(munich_data_df['clean_text'])
+
+  # output_debug = munich_data_df
+  # output_debug.to_csv(output_debug_path, index=False, encoding='utf-8-sig')
 
 
   return munich_data_df
@@ -91,6 +130,5 @@ def main():
 
 if __name__=='__main__':
   result = main()
+  print(result[['full_text', 'clean_text']].head())
 
-
-# print(result)
