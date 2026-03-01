@@ -6,15 +6,19 @@ import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from collections import Counter
+
 
 # --------------------- CONSTANCE VARIABLES -----------------------------
 CLIENT_ID = ''
 CLIENT_SECRET = ''
 USER_AGENT = 'Projekt: Data Analysis'
+STANDARD_AUTHORS = ['unknown', 'AutoModerator']
 
-# -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
+# # -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
 nltk.download('punkt')
 nltk.download('stopwords')
+nltk.download('wordnet')
 
 
 
@@ -58,6 +62,8 @@ def getDataFromReddit(subreddit):
   munich_data = pd.DataFrame(data)
   return munich_data
 
+
+
 def process(text):
   # Replace NaN values with empty strings
   if pd.isna(text):
@@ -74,11 +80,17 @@ def process(text):
   stop_words_de = set(stopwords.words('german'))
   all_stopwords = stop_words_en.union(stop_words_de)
 
-  clean_tokens = [w for w in tokens if w.isalpha() and w not in all_stopwords]
+  # 3.6 NLTK Book
+  wnl = nltk.WordNetLemmatizer()
+  
+
+  # clean_tokens = [w for w in tokens if w.isalpha() and w not in all_stopwords]
+  clean_tokens = [wnl.lemmatize(w) for w in tokens if w.isalpha() and w not in all_stopwords]
   clean_tokens_string = " ".join(clean_tokens)
 
 
   return clean_tokens_string
+
 
 
 def main():
@@ -108,21 +120,35 @@ def main():
   # print(munich_data_df[['title', 'text']])
 
   # Replace NaN values with empty strings
-  # munich_data_df['title'] = munich_data_df['title'].fillna('')
-  # munich_data_df['text'] = munich_data_df['text'].fillna('')
-
-  munich_data_df['title'] = munich_data_df['title']
-  munich_data_df['text'] = munich_data_df['text']
+  munich_data_df['title'] = munich_data_df['title'].fillna('')
+  munich_data_df['text'] = munich_data_df['text'].fillna('')
 
   # Combine title and text for theme examination
   munich_data_df['full_text'] = munich_data_df['title'] + " " + munich_data_df['text']
-  print(munich_data_df['full_text'])
+  # print(munich_data_df['full_text'])
 
   munich_data_df['clean_text'] = munich_data_df['full_text'].apply(process)
-  print(munich_data_df['clean_text'])
+  # print(munich_data_df['clean_text'])
 
-  # output_debug = munich_data_df
-  # output_debug.to_csv(output_debug_path, index=False, encoding='utf-8-sig')
+  output_debug = munich_data_df
+  output_debug.to_csv(output_debug_path, index=False, encoding='utf-8-sig')
+
+  # Extract most active users
+  authors = munich_data_df['author'].dropna().tolist()
+  # print(authors)
+  filtered_authors = [a for a in authors if a not in STANDARD_AUTHORS]
+  
+  author_counts = Counter(filtered_authors)
+  most_active_authors = author_counts.most_common(10)
+  # print(most_active_authors)
+
+
+  # Extract most used flairs
+  flairs = munich_data_df['flair'].dropna().tolist()
+  flair_counts = Counter(flairs)
+  most_common_flairs = flair_counts.most_common(10)
+  print(most_common_flairs)
+
 
 
   return munich_data_df
@@ -130,5 +156,4 @@ def main():
 
 if __name__=='__main__':
   result = main()
-  print(result[['full_text', 'clean_text']].head())
 
