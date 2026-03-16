@@ -149,6 +149,18 @@ def main():
   most_common_flairs = flair_counts.most_common(10)
   print(most_common_flairs)
 
+  text_corpus = munich_data_df[munich_data_df['clean_text'].str.strip() != '']['clean_text'].tolist()
+  # print(text_corpus)
+
+  # TF-IDF
+  vectorizer = TfidfVectorizer(use_idf=True, max_features=1000, smooth_idf=True)
+  model = vectorizer.fit_transform(text_corpus)
+  # print(model)
+
+  # Latent Dirichlet Allocation (LDA)
+  lda_model = LatentDirichletAllocation(n_components=5, learning_method='online', random_state=42, max_iter=1)
+  lda_top = lda_model.fit_transform(model)
+  print(lda_top)
 
 
   return munich_data_df
