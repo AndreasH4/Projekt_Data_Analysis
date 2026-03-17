@@ -162,6 +162,9 @@ def main():
   lda_top = lda_model.fit_transform(model)
   print(lda_top)
 
+  for i, topic in enumerate(lda_top[0]):
+    print("Topic ",i,": ",topic*100,"%")
+
 
   return munich_data_df
 
