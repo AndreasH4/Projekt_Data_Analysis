@@ -267,7 +267,7 @@ def main():
   # print(model)
 
   # Latent Dirichlet Allocation (LDA)
-  # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html
+  # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html 
   lda_model = LatentDirichletAllocation(n_components=5, learning_method='online', random_state=42, max_iter=20)
   lda_top = lda_model.fit_transform(model)
   # print(lda_top)
