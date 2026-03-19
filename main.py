@@ -20,8 +20,10 @@ USER_AGENT = 'Projekt: Data Analysis'
 STANDARD_AUTHORS = ['unknown', 'AutoModerator']
 N_TOP_WORDS = 20
 MUNICH_DATA_PATH = 'munich_reddit_data.csv'
-OUTPUT_DEBUG_PATH = 'debug.csv'
-LDA_RESULTS_JSON_PATH = 'lda_results.json'
+OUTPUT_DEBUG_PATH = 'Outputs/debug.csv'
+LDA_RESULTS_JSON_PATH = 'Outputs/lda_results.json'
+MOST_ACTIVE_AUTHORS_CSV_PATH = 'Outputs/most_active_authors.csv'
+MOST_COMMON_FLAIRS_CSV_PATH = 'Outputs/most_common_flairs.csv'
 TOPICS_LDA_PNG = 'Figures/topics_lda.png'
 
 # # -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
@@ -106,10 +108,22 @@ def process(text):
 
 
 
+# def plot_bar_chart(data, x_label, y_label, title):
+#   df = pd.DataFrame(data, columns=[y_label, x_label])
+#   ax = sns.barplot(
+#               data=df,
+#               x=x_label,
+#               y=y_label,
+#               )
+  
+#   ax.set_title(title)
+#   sns.despine(left=True, bottom=True)
+#   plt.show()
+#   return
+
 def plot_bar_chart(data, x_label, y_label, title):
-  df = pd.DataFrame(data, columns=[y_label, x_label])
   ax = sns.barplot(
-              data=df,
+              data=data,
               x=x_label,
               y=y_label,
               )
@@ -243,6 +257,8 @@ def main():
   # https://pandas.pydata.org/docs/user_guide/indexing.html
   # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.loc.html
   # https://pandas.pydata.org/docs/user_guide/indexing.html#setting-with-enlargement
+  # https://www.geeksforgeeks.org/pandas/python-pandas-extracting-rows-using-loc/
+  # https://medium.com/@whyamit404/understanding-pandas-loc-with-simple-examples-cd9ec8693da0
   text_corpus_list = munich_data_df.loc[
     munich_data_df['clean_text'].str.strip() != '',
     'clean_text'
@@ -253,19 +269,45 @@ def main():
   output_debug.to_csv(OUTPUT_DEBUG_PATH, index=False, encoding='utf-8-sig')
 
 
-  # ------------------- Extract most active suers and used flairs ----------------------------------
+  # ------------------- Extract most active users and used flairs ----------------------------------
   # Extract most active users
-  authors = munich_data_df['author'].dropna().tolist()
+  # authors = munich_data_df['author'].dropna().tolist()
+  authors = munich_data_df['author'].dropna()
   # print(authors)
-  filtered_authors = [a for a in authors if a not in STANDARD_AUTHORS]
-  author_counts = Counter(filtered_authors)
-  most_active_authors = author_counts.most_common(10)
+
+  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.isin.html
+  # https://medium.com/@heyamit10/understanding-isin-with-not-in-pandas-b20099c4ed63
+  filtered_authors = authors[~authors.isin(STANDARD_AUTHORS)]
+  # print(filtered_authors)
+  # filtered_authors.to_csv('Outputs/filtered_authors.csv', index=False, encoding='utf-8-sig')
+  # print(authors)
+  # reset_index for writing in csv for two columns, instead of one, if not .reset_index() author is index
+  # https://pandas.pydata.org/docs/reference/api/pandas.Series.value_counts.html
+  # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.head.html
+  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.reset_index.html
+  most_active_authors_df = filtered_authors.value_counts().head(10).reset_index()
+  # print(most_active_authors_df)
+  most_active_authors_df.columns = ['Nutzer', 'Anzahl Posts/Kommentare']
+  most_active_authors_df.to_csv(MOST_ACTIVE_AUTHORS_CSV_PATH, index=False, encoding='utf-8-sig')
+
+
+  # filtered_authors = [a for a in authors if a not in STANDARD_AUTHORS]
+  # author_counts = Counter(filtered_authors)
+  # most_active_authors = author_counts.most_common(10)
+  # most_active_authors_df = pd.DataFrame(most_active_authors, columns=['Nutzer', 'Anzahl Posts/Kommentare'])
+  # most_active_authors_df.to_csv(MOST_ACTIVE_AUTHORS_CSV_PATH, index=False, encoding='utf-8-sig')
   # print(f'most_active_authors: {most_active_authors}')
 
   # Extract most used flairs
-  flairs = munich_data_df['flair'].dropna().tolist()
-  flair_counts = Counter(flairs)
-  most_common_flairs = flair_counts.most_common(10)
+
+  flairs = munich_data_df['flair'].dropna()
+  most_common_flairs_df = flairs.value_counts().head(10).reset_index()
+  most_common_flairs_df.columns = ['Flairs', 'Anzahl Flairs']
+  most_common_flairs_df.to_csv(MOST_COMMON_FLAIRS_CSV_PATH, index=False, encoding='utf-8-sig')
+  
+  # flairs = munich_data_df['flair'].dropna().tolist()
+  # flair_counts = Counter(flairs)
+  # most_common_flairs = flair_counts.most_common(10)
   # print(f'most_common_flairs: {most_common_flairs}')
 
 
@@ -291,9 +333,9 @@ def main():
   # print(f'\ndfs_top_words:\n{dfs_top_words_result}\n')
   # dfs_top_words_result.to_csv('/home/user/Development/Projekt_Data_Analysis/Reddit/output.csv', index=False, encoding='utf-8-sig')
   lda_results = top_words_in_json_format(lda_model, feature_names, N_TOP_WORDS)
-  print(lda_results)
+  # print(lda_results)
 
-  # Write results as json to 
+  # Write results as json to lda_results.json
   # https://www.geeksforgeeks.org/python/write-multiple-variables-to-a-file-using-python/
   # https://www.geeksforgeeks.org/python/how-to-convert-python-dictionary-to-json/
   with open(LDA_RESULTS_JSON_PATH, 'w') as file:
@@ -302,8 +344,9 @@ def main():
 
   # ---------------------------- Plot results ----------------------------------------------------
   
-  plot_bar_chart(most_active_authors, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer')
-  plot_bar_chart(most_common_flairs, 'Anzahl Flairs', 'Flairs', 'Top 10 der meist verwendeten Flairs')
+  # plot_bar_chart(most_active_authors, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer')
+  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer')
+  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs', 'Top 10 der meist verwendeten Flairs')
 
   # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html#gallery-examples
   # https://scikit-learn.org/stable/auto_examples/applications/plot_topics_extraction_with_nmf_lda.html
