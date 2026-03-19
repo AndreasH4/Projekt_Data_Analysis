@@ -15,9 +15,7 @@ import json
 from dotenv import load_dotenv
 
 
-# --------------------- CONSTANCE VARIABLES -----------------------------
-# CLIENT_ID = ''
-# CLIENT_SECRET = ''
+# ---------------------------- CONSTANTS --------------------------------
 USER_AGENT = 'Projekt: Data Analysis'
 STANDARD_AUTHORS = ['unknown', 'AutoModerator']
 N_TOP_WORDS = 20
@@ -33,13 +31,14 @@ nltk.download('wordnet')
 
 
 # https://www.kdnuggets.com/managing-secrets-and-api-keys-in-python-projects-env-guide
-def getSecret(secret_name):
+def get_secret(secret_name):
   load_dotenv()
   secret = os.getenv(secret_name)
   return secret
 
 
-def getDataFromReddit(subreddit):
+
+def get_data_from_reddit(subreddit):
   data = []
 
   # Scraping posts and Comments
@@ -99,17 +98,31 @@ def process(text):
   # 3.6 NLTK Book
   wnl = nltk.WordNetLemmatizer()
   
-
   # clean_tokens = [w for w in tokens if w.isalpha() and w not in all_stopwords]
   clean_tokens = [wnl.lemmatize(w) for w in tokens if w.isalpha() and w not in all_stopwords]
   clean_tokens_string = " ".join(clean_tokens)
 
-
   return clean_tokens_string
 
 
+
+def plot_bar_chart(data, x_label, y_label, title):
+  df = pd.DataFrame(data, columns=[y_label, x_label])
+  ax = sns.barplot(
+              data=df,
+              x=x_label,
+              y=y_label,
+              )
+  
+  ax.set_title(title)
+  sns.despine(left=True, bottom=True)
+  plt.show()
+  return
+
+
+
 # https://scikit-learn.org/stable/auto_examples/applications/plot_topics_extraction_with_nmf_lda.html
-def print_top_words(model, feature_names, n_top_words):
+def top_words_in_json_format(model, feature_names, n_top_words):
   # https://stackoverflow.com/questions/28669482/appending-pandas-dataframes-generated-in-a-for-loop
   # https://stackoverflow.com/questions/30635145/create-multiple-dataframes-in-loop
   lda_results = {}
@@ -131,19 +144,7 @@ def print_top_words(model, feature_names, n_top_words):
     topic_dict = dict(zip(top_features_list, weights_list))
 
     lda_results[topic_title_idx] = topic_dict
-
-    # df_topic_words = pd.DataFrame({
-    #   'Word': top_features,
-    #   'Weight': weights
-    # })
-    # print(topic_title_idx)
-    # print(df_topic_words)
-    # # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_dict.html
-    # data[topic_title_idx] = df_topic_words.to_dict()
-    # appended_data.append(df_topic_words)
-  # appended_data = pd.concat(appended_data)
   return lda_results
-
 
 
 
@@ -176,8 +177,6 @@ def plot_top_words(model, feature_names, n_top_words, title):
           ax.set_ylabel("Wörter", fontsize=20)
 
         ax.tick_params(axis="both", which="major", labelsize=20)
-        # for i in "top right left".split():
-        #     ax.spines[i].set_visible(False)
 
         # https://seaborn.pydata.org/generated/seaborn.despine.html
         # https://medium.com/@tttgm/styling-charts-in-seaborn-92136331a541
@@ -187,15 +186,15 @@ def plot_top_words(model, feature_names, n_top_words, title):
     plt.subplots_adjust(top=0.80, bottom=0.15, wspace=0.90, hspace=0.3)
     plt.savefig(TOPICS_LDA_PNG)
     plt.show()
+    return
 
 
 
 def main():
-
   # https://www.kdnuggets.com/managing-secrets-and-api-keys-in-python-projects-env-guide
-  client_id = getSecret('CLIENT_ID')
+  client_id = get_secret('CLIENT_ID')
   # print(f'Retrieved Secret CLIENT_ID:\n{client_id}\n')
-  client_secret = getSecret('CLIENT_SECRET')
+  client_secret = get_secret('CLIENT_SECRET')
   # print(f'Retrieved Secret CLIENT_SECRET:\n{client_id}\n')
 
   if not client_id:
@@ -220,10 +219,12 @@ def main():
     # subreddit = reddit.subreddit('fitness')
     
 
-    munich_data = getDataFromReddit(subreddit)
+    munich_data = get_data_from_reddit(subreddit)
     # Write data to munich_reddit_data.csv
     munich_data.to_csv(MUNICH_DATA_PATH, index=False, encoding='utf-8-sig')
 
+
+  # ---------------------------- Pre-Processing -------------------------------------------------
   # Read Reddit-Data from csv-file
   munich_data_df = pd.read_csv(MUNICH_DATA_PATH)
   # print(munich_data_df[['title', 'text']])
@@ -239,35 +240,46 @@ def main():
   munich_data_df['clean_text'] = munich_data_df['full_text'].apply(process)
   # print(munich_data_df['clean_text'])
 
-  output_debug = munich_data_df
+  # https://pandas.pydata.org/docs/user_guide/indexing.html
+  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.loc.html
+  # https://pandas.pydata.org/docs/user_guide/indexing.html#setting-with-enlargement
+  text_corpus_list = munich_data_df.loc[
+    munich_data_df['clean_text'].str.strip() != '',
+    'clean_text'
+  ].tolist()
+  # print(text_corpus_list)
+
+  output_debug = munich_data_df['clean_text']
   output_debug.to_csv(OUTPUT_DEBUG_PATH, index=False, encoding='utf-8-sig')
 
+
+  # ------------------- Extract most active suers and used flairs ----------------------------------
   # Extract most active users
   authors = munich_data_df['author'].dropna().tolist()
   # print(authors)
   filtered_authors = [a for a in authors if a not in STANDARD_AUTHORS]
   author_counts = Counter(filtered_authors)
   most_active_authors = author_counts.most_common(10)
-  print(f'most_active_authors: {most_active_authors}')
+  # print(f'most_active_authors: {most_active_authors}')
 
   # Extract most used flairs
   flairs = munich_data_df['flair'].dropna().tolist()
   flair_counts = Counter(flairs)
   most_common_flairs = flair_counts.most_common(10)
-  print(f'most_common_flairs: {most_common_flairs}')
+  # print(f'most_common_flairs: {most_common_flairs}')
 
-  text_corpus = munich_data_df[munich_data_df['clean_text'].str.strip() != '']['clean_text'].tolist()
-  # print(text_corpus)
+
+  # ---------------------------- TF-IDF and LDA -------------------------------------------------
 
   # TF-IDF
   # https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
   vectorizer = TfidfVectorizer(use_idf=True, max_features=1000, smooth_idf=True)
-  model = vectorizer.fit_transform(text_corpus)
+  model = vectorizer.fit_transform(text_corpus_list)
   feature_names = vectorizer.get_feature_names_out()
   # print(model)
 
   # Latent Dirichlet Allocation (LDA)
-  # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html 
+  # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html
   lda_model = LatentDirichletAllocation(n_components=5, learning_method='online', random_state=42, max_iter=20)
   lda_top = lda_model.fit_transform(model)
   # print(lda_top)
@@ -278,7 +290,7 @@ def main():
   # dfs_top_words_result = dfs_top_words(lda_model, feature_names, N_TOP_WORDS)
   # print(f'\ndfs_top_words:\n{dfs_top_words_result}\n')
   # dfs_top_words_result.to_csv('/home/user/Development/Projekt_Data_Analysis/Reddit/output.csv', index=False, encoding='utf-8-sig')
-  lda_results = print_top_words(lda_model, feature_names, N_TOP_WORDS)
+  lda_results = top_words_in_json_format(lda_model, feature_names, N_TOP_WORDS)
   print(lda_results)
 
   # Write results as json to 
@@ -287,6 +299,11 @@ def main():
   with open(LDA_RESULTS_JSON_PATH, 'w') as file:
     json.dump(lda_results, file, ensure_ascii=False, indent=2)
   
+
+  # ---------------------------- Plot results ----------------------------------------------------
+  
+  plot_bar_chart(most_active_authors, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer')
+  plot_bar_chart(most_common_flairs, 'Anzahl Flairs', 'Flairs', 'Top 10 der meist verwendeten Flairs')
 
   # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html#gallery-examples
   # https://scikit-learn.org/stable/auto_examples/applications/plot_topics_extraction_with_nmf_lda.html
