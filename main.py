@@ -24,7 +24,10 @@ OUTPUT_DEBUG_PATH = 'Outputs/debug.csv'
 LDA_RESULTS_JSON_PATH = 'Outputs/lda_results.json'
 MOST_ACTIVE_AUTHORS_CSV_PATH = 'Outputs/most_active_authors.csv'
 MOST_COMMON_FLAIRS_CSV_PATH = 'Outputs/most_common_flairs.csv'
-TOPICS_LDA_PNG = 'Figures/topics_lda.png'
+TOPICS_LDA_PNG_PATH = 'Figures/topics_lda.png'
+MOST_ACTIVE_AUTHORS_PNG_PATH = 'Figures/most_active_authors.png'
+MOST_COMMON_FLAIRS_PNG_PATH = 'Figures/most_common_flairs.png'
+
 
 # # -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
 nltk.download('punkt')
@@ -99,8 +102,6 @@ def process(text):
 
   # 3.6 NLTK Book
   wnl = nltk.WordNetLemmatizer()
-  
-  # clean_tokens = [w for w in tokens if w.isalpha() and w not in all_stopwords]
   clean_tokens = [wnl.lemmatize(w) for w in tokens if w.isalpha() and w not in all_stopwords]
   clean_tokens_string = " ".join(clean_tokens)
 
@@ -108,20 +109,7 @@ def process(text):
 
 
 
-# def plot_bar_chart(data, x_label, y_label, title):
-#   df = pd.DataFrame(data, columns=[y_label, x_label])
-#   ax = sns.barplot(
-#               data=df,
-#               x=x_label,
-#               y=y_label,
-#               )
-  
-#   ax.set_title(title)
-#   sns.despine(left=True, bottom=True)
-#   plt.show()
-#   return
-
-def plot_bar_chart(data, x_label, y_label, title):
+def plot_bar_chart(data, x_label, y_label, title, path):
   ax = sns.barplot(
               data=data,
               x=x_label,
@@ -130,6 +118,7 @@ def plot_bar_chart(data, x_label, y_label, title):
   
   ax.set_title(title)
   sns.despine(left=True, bottom=True)
+  plt.savefig(path)
   plt.show()
   return
 
@@ -198,7 +187,7 @@ def plot_top_words(model, feature_names, n_top_words, title):
         fig.suptitle(title, fontsize=40)
 
     plt.subplots_adjust(top=0.80, bottom=0.15, wspace=0.90, hspace=0.3)
-    plt.savefig(TOPICS_LDA_PNG)
+    plt.savefig(TOPICS_LDA_PNG_PATH)
     plt.show()
     return
 
@@ -265,7 +254,7 @@ def main():
   ].tolist()
   # print(text_corpus_list)
 
-  output_debug = munich_data_df['clean_text']
+  output_debug = munich_data_df[['full_text', 'clean_text']]
   output_debug.to_csv(OUTPUT_DEBUG_PATH, index=False, encoding='utf-8-sig')
 
 
@@ -366,9 +355,8 @@ def main():
 
   # ---------------------------- Plot results ----------------------------------------------------
   
-  # plot_bar_chart(most_active_authors, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer')
-  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer')
-  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs', 'Top 10 der meist verwendeten Flairs')
+  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer', MOST_ACTIVE_AUTHORS_PNG_PATH)
+  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs', 'Top 10 der meist verwendeten Flairs', MOST_COMMON_FLAIRS_PNG_PATH)
 
   # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html#gallery-examples
   # https://scikit-learn.org/stable/auto_examples/applications/plot_topics_extraction_with_nmf_lda.html
