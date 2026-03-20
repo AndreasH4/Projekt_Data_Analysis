@@ -44,7 +44,7 @@ def get_data_from_reddit(subreddit):
   data = []
 
   # Scraping posts and Comments
-  for post in subreddit.top(time_filter='year', limit= 30): 
+  for post in subreddit.top(time_filter='year', limit=None): 
     data.append({
         'post_id': post.id,
         'type': 'post',
@@ -273,18 +273,26 @@ def main():
   # Extract most active users
   # authors = munich_data_df['author'].dropna().tolist()
   authors = munich_data_df['author'].dropna()
+
   # print(authors)
 
   # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.isin.html
   # https://medium.com/@heyamit10/understanding-isin-with-not-in-pandas-b20099c4ed63
   filtered_authors = authors[~authors.isin(STANDARD_AUTHORS)]
+  
+  # https://pandas.pydata.org/docs/reference/api/pandas.Series.nunique.html
+  nunique_filtered_authors = filtered_authors.nunique()
+  print(f'Anzahl unterschiedlicher Nutzer im Reddit-Datensatz:\n{nunique_filtered_authors}\n')
+  # https://pandas.pydata.org/docs/reference/api/pandas.Series.unique.html
+  unique_filtered_authors = filtered_authors.unique()
+  print(f'Folgende Nutzer gefunden:\n{unique_filtered_authors}\n')
   # print(filtered_authors)
   # filtered_authors.to_csv('Outputs/filtered_authors.csv', index=False, encoding='utf-8-sig')
   # print(authors)
   # reset_index for writing in csv for two columns, instead of one, if not .reset_index() author is index
   # https://pandas.pydata.org/docs/reference/api/pandas.Series.value_counts.html
-  # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.head.html
-  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.reset_index.html
+  # https://pandas.pydata.org/docs/reference/api/pandas.Series.head.html
+  # https://pandas.pydata.org/docs/reference/api/pandas.Series.reset_index.html
   most_active_authors_df = filtered_authors.value_counts().head(10).reset_index()
   # print(most_active_authors_df)
   most_active_authors_df.columns = ['Nutzer', 'Anzahl Posts/Kommentare']
@@ -301,6 +309,12 @@ def main():
   # Extract most used flairs
 
   flairs = munich_data_df['flair'].dropna()
+  nunique_flairs = flairs.nunique()
+  print(f'Anzahl unterschiedlicher Flairs im Reddit-Datensatz:\n{nunique_flairs}\n')
+  unique_flairs = flairs.unique()
+  print(f'Folgende Flairs gefunden:\n{unique_flairs}\n')
+  count_flairs = flairs.value_counts()
+  # print(f'count_flairs:\n{count_flairs}\n')
   most_common_flairs_df = flairs.value_counts().head(10).reset_index()
   most_common_flairs_df.columns = ['Flairs', 'Anzahl Flairs']
   most_common_flairs_df.to_csv(MOST_COMMON_FLAIRS_CSV_PATH, index=False, encoding='utf-8-sig')
@@ -315,19 +329,27 @@ def main():
 
   # TF-IDF
   # https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
-  vectorizer = TfidfVectorizer(use_idf=True, max_features=1000, smooth_idf=True)
+  vectorizer = TfidfVectorizer(use_idf=True,
+                               min_df=5,
+                               max_df=0.90,
+                               smooth_idf=True
+                               )
   model = vectorizer.fit_transform(text_corpus_list)
   feature_names = vectorizer.get_feature_names_out()
-  # print(model)
+  # print(len(feature_names))
 
   # Latent Dirichlet Allocation (LDA)
   # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html
-  lda_model = LatentDirichletAllocation(n_components=5, learning_method='online', random_state=42, max_iter=20)
+  # https://peps.python.org/pep-0008/#when-to-use-trailing-commas
+  lda_model = LatentDirichletAllocation(n_components=5,
+                                        learning_method='online',
+                                        random_state=42,
+                                        max_iter=10,
+                                        evaluate_every=1,
+                                        verbose=1
+                                        )
   lda_top = lda_model.fit_transform(model)
-  # print(lda_top)
-  
-  for i, topic in enumerate(lda_top[0]):
-    print("Topic ",i+1,": ",topic*100,"%")
+  # print(f'\nlda_top:\n{lda_top}\n')
 
   # dfs_top_words_result = dfs_top_words(lda_model, feature_names, N_TOP_WORDS)
   # print(f'\ndfs_top_words:\n{dfs_top_words_result}\n')
