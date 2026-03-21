@@ -27,6 +27,7 @@ MOST_COMMON_FLAIRS_CSV_PATH = 'Outputs/most_common_flairs.csv'
 TOPICS_LDA_PNG_PATH = 'Figures/topics_lda.png'
 MOST_ACTIVE_AUTHORS_PNG_PATH = 'Figures/most_active_authors.png'
 MOST_COMMON_FLAIRS_PNG_PATH = 'Figures/most_common_flairs.png'
+CUSTOM_STOP_WORDS_PATH = 'Inputs/custom_stop_words.json'
 
 
 # # -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
@@ -40,6 +41,18 @@ def get_secret(secret_name):
   load_dotenv()
   secret = os.getenv(secret_name)
   return secret
+
+
+# https://thedkpatel.medium.com/10-best-practices-for-secure-and-efficient-file-handling-in-python-part-1-6a102a80e166
+def get_custom_stop_words(path):
+  try:
+    with open(path, 'r', encoding='utf-8') as file:
+      custom_stop_words = json.loads(file.read())
+    return custom_stop_words
+  except FileNotFoundError as e:
+    return f'File not found: {e}'
+  except PermissionError as e:
+    return f'Permission denied: {e}'
 
 
 
@@ -84,10 +97,10 @@ def get_data_from_reddit(subreddit):
 
 
 
-def process(text):
+def process(text, custom_stop_words):
   # Replace NaN values with empty strings
   if pd.isna(text):
-    return ""
+    return ''
   
   text = text.lower()
 
@@ -96,27 +109,30 @@ def process(text):
   # text = text.replace('\n', '')
   tokens = word_tokenize(text)
 
+  # Custom and predifiend stop words
+  custom_stop_words_english = set(custom_stop_words['english'])
+  custom_stop_words_german = set(custom_stop_words['german'])
   stop_words_en = set(stopwords.words('english'))
   stop_words_de = set(stopwords.words('german'))
-  all_stopwords = stop_words_en.union(stop_words_de)
+  all_stopwords = stop_words_en.union(stop_words_de, custom_stop_words_english, custom_stop_words_german)
 
   # 3.6 NLTK Book
   wnl = nltk.WordNetLemmatizer()
   clean_tokens = [wnl.lemmatize(w) for w in tokens if w.isalpha() and w not in all_stopwords]
-  clean_tokens_string = " ".join(clean_tokens)
+  clean_tokens_string = ' '.join(clean_tokens)
 
   return clean_tokens_string
 
 
 
-def plot_bar_chart(data, x_label, y_label, title, path):
+def plot_bar_chart(data, x_label, y_label, path):
   ax = sns.barplot(
               data=data,
               x=x_label,
               y=y_label,
               )
   
-  ax.set_title(title)
+  # ax.set_title(title)
   sns.despine(left=True, bottom=True)
   plt.savefig(path)
   plt.show()
@@ -152,7 +168,7 @@ def top_words_in_json_format(model, feature_names, n_top_words):
 
 
 # https://scikit-learn.org/stable/auto_examples/applications/plot_topics_extraction_with_nmf_lda.html
-def plot_top_words(model, feature_names, n_top_words, title):
+def plot_top_words(model, feature_names, n_top_words):
     fig, axes = plt.subplots(1, 5, figsize=(30, 8), sharex=True)
     axes = axes.flatten()
     for topic_idx, topic in enumerate(model.components_):
@@ -173,18 +189,18 @@ def plot_top_words(model, feature_names, n_top_words, title):
           ax=ax
         )
 
-        ax.set_title(f"Thema {topic_idx + 1}", fontdict={"fontsize": 30})
-        ax.set_xlabel("Gewichtung (TF-IDF)", fontsize=20)
+        ax.set_title(f'Thema {topic_idx + 1}', fontdict={'fontsize': 30})
+        ax.set_xlabel('Gewichtung (TF-IDF)', fontsize=20)
 
         if topic_idx == 0:
-          ax.set_ylabel("Wörter", fontsize=20)
+          ax.set_ylabel('Wörter', fontsize=20)
 
-        ax.tick_params(axis="both", which="major", labelsize=20)
+        ax.tick_params(axis='both', which='major', labelsize=20)
 
         # https://seaborn.pydata.org/generated/seaborn.despine.html
         # https://medium.com/@tttgm/styling-charts-in-seaborn-92136331a541
         sns.despine(ax=ax, left=True, bottom=True)
-        fig.suptitle(title, fontsize=40)
+        # fig.suptitle(title, fontsize=40)
 
     plt.subplots_adjust(top=0.80, bottom=0.15, wspace=0.90, hspace=0.3)
     plt.savefig(TOPICS_LDA_PNG_PATH)
@@ -206,6 +222,12 @@ def main():
 
   if not client_secret:
     print('No client_secret was found')
+    return
+
+  custom_stop_words = get_custom_stop_words(CUSTOM_STOP_WORDS_PATH)
+
+  if not isinstance(custom_stop_words, dict):
+    print(custom_stop_words)
     return
 
   # Guard Clause: Only if munich_reddit_data.csv is not present, extract data from Reddit via PRAW
@@ -237,10 +259,11 @@ def main():
   munich_data_df['text'] = munich_data_df['text'].fillna('')
 
   # Combine title and text for theme examination
-  munich_data_df['full_text'] = munich_data_df['title'] + " " + munich_data_df['text']
+  munich_data_df['full_text'] = munich_data_df['title'] + ' ' + munich_data_df['text']
   # print(munich_data_df['full_text'])
 
-  munich_data_df['clean_text'] = munich_data_df['full_text'].apply(process)
+  # https://pandas.pydata.org/docs/reference/api/pandas.Series.apply.html
+  munich_data_df['clean_text'] = munich_data_df['full_text'].apply(process, custom_stop_words=custom_stop_words)
   # print(munich_data_df['clean_text'])
 
   # https://pandas.pydata.org/docs/user_guide/indexing.html
@@ -296,7 +319,6 @@ def main():
   # print(f'most_active_authors: {most_active_authors}')
 
   # Extract most used flairs
-
   flairs = munich_data_df['flair'].dropna()
   nunique_flairs = flairs.nunique()
   print(f'Anzahl unterschiedlicher Flairs im Reddit-Datensatz:\n{nunique_flairs}\n')
@@ -334,6 +356,7 @@ def main():
                                         learning_method='online',
                                         random_state=42,
                                         max_iter=10,
+                                        n_jobs=-2,
                                         evaluate_every=1,
                                         verbose=1
                                         )
@@ -355,12 +378,15 @@ def main():
 
   # ---------------------------- Plot results ----------------------------------------------------
   
-  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer', MOST_ACTIVE_AUTHORS_PNG_PATH)
-  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs', 'Top 10 der meist verwendeten Flairs', MOST_COMMON_FLAIRS_PNG_PATH)
+  # plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer', MOST_ACTIVE_AUTHORS_PNG_PATH)
+  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer', MOST_ACTIVE_AUTHORS_PNG_PATH)
+  # plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs', 'Top 10 der meist verwendeten Flairs', MOST_COMMON_FLAIRS_PNG_PATH)
+  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs', MOST_COMMON_FLAIRS_PNG_PATH)
 
   # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html#gallery-examples
   # https://scikit-learn.org/stable/auto_examples/applications/plot_topics_extraction_with_nmf_lda.html
-  plot_top_words(lda_model, feature_names, N_TOP_WORDS, "Themen nach Latent Dirichlet Allocation (LDA)")
+  # plot_top_words(lda_model, feature_names, N_TOP_WORDS, 'Themen nach Latent Dirichlet Allocation (LDA)')
+  plot_top_words(lda_model, feature_names, N_TOP_WORDS)
 
   return munich_data_df
 
