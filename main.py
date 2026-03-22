@@ -66,6 +66,10 @@ def get_custom_stopwords(path):
 
 
 
+def join_post_id_text(text):
+  return ' '.join(text)
+
+
 def get_data_from_reddit(subreddit):
   """
   Retrieve posts and top-level comments from specified subreddit
@@ -285,6 +289,23 @@ def main():
   # Replace NaN values with empty strings
   munich_data_df['title'] = munich_data_df['title'].fillna('')
   munich_data_df['text'] = munich_data_df['text'].fillna('')
+  
+  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.groupby.html
+  # https://pandas.pydata.org/pandas-docs/stable/user_guide/groupby.html#the-aggregate-method
+  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.agg.html
+  # https://stackoverflow.com/questions/12589481/multiple-aggregations-of-the-same-column-using-pandas-groupby-agg
+  # https://medium.com/@heyamit10/understanding-groupby-and-aggregate-in-pandas-f45e524538b9
+  # https://pandas.pydata.org/pandas-docs/stable/user_guide/groupby.html#named-aggregation
+  munich_data_df_groupby_post_id = munich_data_df.groupby('post_id').agg(
+    title=pd.NamedAgg(column='title', aggfunc='first'),
+    flair=pd.NamedAgg(column='flair', aggfunc='first'),
+    text=pd.NamedAgg(column='text', aggfunc=join_post_id_text)
+  ).reset_index()
+
+  # print(f'\nmunich_data_df_groupby_post_id:\n{munich_data_df_groupby_post_id}\n')
+
+  munich_data_df_groupby_post_id.to_csv('Outputs/munich_data_df_groupby_post_id.csv', index=False, encoding='utf-8-sig')
+
 
   # Combine title and text for theme examination
   munich_data_df['full_text'] = munich_data_df['title'] + ' ' + munich_data_df['text']
@@ -305,8 +326,8 @@ def main():
     'clean_text'
   ].tolist()
 
-  output_debug = munich_data_df[['full_text', 'clean_text']]
-  output_debug.to_csv(OUTPUT_DEBUG_PATH, index=False, encoding='utf-8-sig')
+  # output_debug = munich_data_df[['full_text', 'clean_text']]
+  # output_debug.to_csv(OUTPUT_DEBUG_PATH, index=False, encoding='utf-8-sig')
 
 
   # ------------------- Extract most active users and used flairs ----------------------------------
