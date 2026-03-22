@@ -13,6 +13,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 import json
 from dotenv import load_dotenv
+import numpy as np
 
 
 # ---------------------------- CONSTANTS --------------------------------
@@ -20,17 +21,20 @@ USER_AGENT = 'Projekt: Data Analysis'
 STANDARD_AUTHORS = ['unknown', 'AutoModerator']
 N_TOP_WORDS = 20
 MUNICH_DATA_PATH = 'munich_reddit_data.csv'
+
+# INPUTS
+CUSTOM_STOPWORDS_PATH = 'Inputs/custom_stopwords.json'
+
+# OUTPUTS
 OUTPUT_DEBUG_PATH = 'Outputs/debug.csv'
 LDA_RESULTS_JSON_PATH = 'Outputs/lda_results.json'
 MOST_ACTIVE_AUTHORS_CSV_PATH = 'Outputs/most_active_authors.csv'
 MOST_COMMON_FLAIRS_CSV_PATH = 'Outputs/most_common_flairs.csv'
-TOPICS_LDA_PNG_PATH = 'Figures/topics_lda.png'
-MOST_ACTIVE_AUTHORS_PNG_PATH = 'Figures/most_active_authors.png'
-MOST_COMMON_FLAIRS_PNG_PATH = 'Figures/most_common_flairs.png'
-CUSTOM_STOP_WORDS_PATH = 'Inputs/custom_stop_words.json'
+UNIQUE_FILTERED_AUTHORS_CSV_PATH = 'Outputs/unique_filtered_authors.csv'
+UNIQUE_FLAIRS_CSV_PATH = 'Outputs/unique_flairs.csv'
 
 
-# # -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
+# -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
@@ -38,17 +42,23 @@ nltk.download('wordnet')
 
 # https://www.kdnuggets.com/managing-secrets-and-api-keys-in-python-projects-env-guide
 def get_secret(secret_name):
+  """
+  Retrieve secret from .env file
+  """
   load_dotenv()
   secret = os.getenv(secret_name)
   return secret
 
 
 # https://thedkpatel.medium.com/10-best-practices-for-secure-and-efficient-file-handling-in-python-part-1-6a102a80e166
-def get_custom_stop_words(path):
+def get_custom_stopwords(path):
+  """
+  Get custom stopwords from stopwords-file provided by path
+  """
   try:
     with open(path, 'r', encoding='utf-8') as file:
-      custom_stop_words = json.loads(file.read())
-    return custom_stop_words
+      custom_stopwords = json.loads(file.read())
+    return custom_stopwords
   except FileNotFoundError as e:
     return f'File not found: {e}'
   except PermissionError as e:
@@ -57,8 +67,11 @@ def get_custom_stop_words(path):
 
 
 def get_data_from_reddit(subreddit):
-  data = []
+  """
+  Retrieve posts and top-level comments from specified subreddit
+  """
 
+  data = []
   # Scraping posts and Comments
   for post in subreddit.top(time_filter='year', limit=None): 
     data.append({
@@ -97,7 +110,11 @@ def get_data_from_reddit(subreddit):
 
 
 
-def process(text, custom_stop_words):
+def process(text, custom_stopwords):
+  """
+  Additional pre-processing steps for each 'full text' in munich_data_df
+  """
+
   # Replace NaN values with empty strings
   if pd.isna(text):
     return ''
@@ -105,16 +122,14 @@ def process(text, custom_stop_words):
   text = text.lower()
 
   text = re.sub(r'http\S+', '', text)
-  # remove literal \n
-  # text = text.replace('\n', '')
   tokens = word_tokenize(text)
 
-  # Custom and predifiend stop words
-  custom_stop_words_english = set(custom_stop_words['english'])
-  custom_stop_words_german = set(custom_stop_words['german'])
-  stop_words_en = set(stopwords.words('english'))
-  stop_words_de = set(stopwords.words('german'))
-  all_stopwords = stop_words_en.union(stop_words_de, custom_stop_words_english, custom_stop_words_german)
+  # Custom and predifiend stopwords
+  custom_stopwords_english = set(custom_stopwords['english'])
+  custom_stopwords_german = set(custom_stopwords['german'])
+  stopwords_en = set(stopwords.words('english'))
+  stopwords_de = set(stopwords.words('german'))
+  all_stopwords = stopwords_en.union(stopwords_de, custom_stopwords_english, custom_stopwords_german)
 
   # 3.6 NLTK Book
   wnl = nltk.WordNetLemmatizer()
@@ -125,34 +140,39 @@ def process(text, custom_stop_words):
 
 
 
-def plot_bar_chart(data, x_label, y_label, path):
+def plot_bar_chart(data, x_label, y_label):
+  """
+  Plot a bar chart based on pandas series
+  """
+
   ax = sns.barplot(
               data=data,
               x=x_label,
               y=y_label,
               )
   
-  # ax.set_title(title)
   sns.despine(left=True, bottom=True)
-  plt.savefig(path)
   plt.show()
   return
 
 
 
 # https://scikit-learn.org/stable/auto_examples/applications/plot_topics_extraction_with_nmf_lda.html
-def top_words_in_json_format(model, feature_names, n_top_words):
+def top_words_in_dict_format(lda_model, feature_names, n_top_words):
+  """
+  Write top words/weights from LDA in dictionary format
+  """
+
   # https://stackoverflow.com/questions/28669482/appending-pandas-dataframes-generated-in-a-for-loop
   # https://stackoverflow.com/questions/30635145/create-multiple-dataframes-in-loop
   lda_results = {}
 
-  for topic_idx, topic in enumerate(model.components_):
+  for topic_idx, topic in enumerate(lda_model.components_):
     topic_title_idx = f'Thema {topic_idx+1}'
     top_features_ind = topic.argsort()[-n_top_words:]
     # https://statistikguru.de/python/python-listen-rueckwaerts.html
     top_features_ind_rev = top_features_ind[::-1]
     top_features = feature_names[top_features_ind_rev]
-    # print(f'top_features: {top_features}')
     weights = topic[top_features_ind_rev]
 
     # https://stackoverflow.com/questions/26646362/numpy-array-is-not-json-serializable
@@ -168,53 +188,63 @@ def top_words_in_json_format(model, feature_names, n_top_words):
 
 
 # https://scikit-learn.org/stable/auto_examples/applications/plot_topics_extraction_with_nmf_lda.html
+# https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html#gallery-examples
 def plot_top_words(model, feature_names, n_top_words):
-    fig, axes = plt.subplots(1, 5, figsize=(30, 8), sharex=True)
-    axes = axes.flatten()
-    for topic_idx, topic in enumerate(model.components_):
-        top_features_ind = topic.argsort()[-n_top_words:]
-        # https://statistikguru.de/python/python-listen-rueckwaerts.html
-        top_features_ind_rev = top_features_ind[::-1]
-        top_features = feature_names[top_features_ind_rev]
+  """
+  Plot top words/weights from LDA
+  """
+  fig, axes = plt.subplots(1, 5, figsize=(30, 8), sharex=True)
+  axes = axes.flatten()
+  for topic_idx, topic in enumerate(model.components_):
+    top_features_ind = topic.argsort()[-n_top_words:]
+    # https://statistikguru.de/python/python-listen-rueckwaerts.html
+    top_features_ind_rev = top_features_ind[::-1]
+    top_features = feature_names[top_features_ind_rev]
 
-        # print(f'top_features: {top_features}')
-        weights = topic[top_features_ind_rev]
+    weights = topic[top_features_ind_rev]
 
-        ax = axes[topic_idx]
+    ax = axes[topic_idx]
 
-        # https://seaborn.pydata.org/generated/seaborn.barplot.html
-        sns.barplot(
-          x=weights,
-          y=top_features,
-          ax=ax
-        )
+    # https://seaborn.pydata.org/generated/seaborn.barplot.html
+    sns.barplot(
+      x=weights,
+      y=top_features,
+      ax=ax
+    )
 
-        ax.set_title(f'Thema {topic_idx + 1}', fontdict={'fontsize': 30})
-        ax.set_xlabel('Gewichtung (TF-IDF)', fontsize=20)
+    ax.set_title(f'Thema {topic_idx + 1}', fontdict={'fontsize': 30})
+    ax.set_xlabel('Gewichtung (TF-IDF)', fontsize=20)
 
-        if topic_idx == 0:
-          ax.set_ylabel('Wörter', fontsize=20)
+    if topic_idx == 0:
+      ax.set_ylabel('Wörter', fontsize=20)
 
-        ax.tick_params(axis='both', which='major', labelsize=20)
+    ax.tick_params(axis='both', which='major', labelsize=20)
 
-        # https://seaborn.pydata.org/generated/seaborn.despine.html
-        # https://medium.com/@tttgm/styling-charts-in-seaborn-92136331a541
-        sns.despine(ax=ax, left=True, bottom=True)
-        # fig.suptitle(title, fontsize=40)
+    # https://seaborn.pydata.org/generated/seaborn.despine.html
+    # https://medium.com/@tttgm/styling-charts-in-seaborn-92136331a541
+    sns.despine(ax=ax, left=True, bottom=True)
 
-    plt.subplots_adjust(top=0.80, bottom=0.15, wspace=0.90, hspace=0.3)
-    plt.savefig(TOPICS_LDA_PNG_PATH)
-    plt.show()
-    return
+  plt.subplots_adjust(top=0.80, bottom=0.15, wspace=0.90, hspace=0.3)
+  plt.show()
+  return
 
 
 
 def main():
+  """
+  1. Retrieve secrets
+  2. Get custom stopwords from JSON file
+  3. If no munich_reddit_data.csv, retrieve data from Reddit
+  4. Pre-Process retrieved data
+  5. Extract most active users and used flairs
+  6. TF-IDF and LDA
+  7. Plot results
+  """
+
+  # Retrieve secrets
   # https://www.kdnuggets.com/managing-secrets-and-api-keys-in-python-projects-env-guide
   client_id = get_secret('CLIENT_ID')
-  # print(f'Retrieved Secret CLIENT_ID:\n{client_id}\n')
   client_secret = get_secret('CLIENT_SECRET')
-  # print(f'Retrieved Secret CLIENT_SECRET:\n{client_id}\n')
 
   if not client_id:
     print('No client_id was found')
@@ -224,10 +254,11 @@ def main():
     print('No client_secret was found')
     return
 
-  custom_stop_words = get_custom_stop_words(CUSTOM_STOP_WORDS_PATH)
+  # Get custom stopwords from JSON file
+  custom_stopwords = get_custom_stopwords(CUSTOM_STOPWORDS_PATH)
 
-  if not isinstance(custom_stop_words, dict):
-    print(custom_stop_words)
+  if not isinstance(custom_stopwords, dict):
+    print(custom_stopwords)
     return
 
   # Guard Clause: Only if munich_reddit_data.csv is not present, extract data from Reddit via PRAW
@@ -241,10 +272,8 @@ def main():
 
     # Subreddit to scrape
     subreddit = reddit.subreddit('munich')
-    # subreddit = reddit.subreddit('fitness')
-    
-
     munich_data = get_data_from_reddit(subreddit)
+
     # Write data to munich_reddit_data.csv
     munich_data.to_csv(MUNICH_DATA_PATH, index=False, encoding='utf-8-sig')
 
@@ -252,7 +281,6 @@ def main():
   # ---------------------------- Pre-Processing -------------------------------------------------
   # Read Reddit-Data from csv-file
   munich_data_df = pd.read_csv(MUNICH_DATA_PATH)
-  # print(munich_data_df[['title', 'text']])
 
   # Replace NaN values with empty strings
   munich_data_df['title'] = munich_data_df['title'].fillna('')
@@ -260,12 +288,13 @@ def main():
 
   # Combine title and text for theme examination
   munich_data_df['full_text'] = munich_data_df['title'] + ' ' + munich_data_df['text']
-  # print(munich_data_df['full_text'])
 
+  # Additional pre-processing for each 'full text' in munich_data_df via function process()
   # https://pandas.pydata.org/docs/reference/api/pandas.Series.apply.html
-  munich_data_df['clean_text'] = munich_data_df['full_text'].apply(process, custom_stop_words=custom_stop_words)
-  # print(munich_data_df['clean_text'])
+  munich_data_df['clean_text'] = munich_data_df['full_text'].apply(process, custom_stopwords=custom_stopwords)
 
+  # Filter out all empty or only with spaces entries out from the with data cleaning 
+  # processed 'clean text' in munich_data_df, convert it to a list as text_corpus_list
   # https://pandas.pydata.org/docs/user_guide/indexing.html
   # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.loc.html
   # https://pandas.pydata.org/docs/user_guide/indexing.html#setting-with-enlargement
@@ -275,101 +304,102 @@ def main():
     munich_data_df['clean_text'].str.strip() != '',
     'clean_text'
   ].tolist()
-  # print(text_corpus_list)
 
   output_debug = munich_data_df[['full_text', 'clean_text']]
   output_debug.to_csv(OUTPUT_DEBUG_PATH, index=False, encoding='utf-8-sig')
 
 
   # ------------------- Extract most active users and used flairs ----------------------------------
-  # Extract most active users
-  # authors = munich_data_df['author'].dropna().tolist()
+  # Drop out authors with no value
   authors = munich_data_df['author'].dropna()
 
-  # print(authors)
-
+  # Filter authors, which are not contained in STANDARD_AUTHORS
   # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.isin.html
   # https://medium.com/@heyamit10/understanding-isin-with-not-in-pandas-b20099c4ed63
   filtered_authors = authors[~authors.isin(STANDARD_AUTHORS)]
   
+  # Return number of unique authors
   # https://pandas.pydata.org/docs/reference/api/pandas.Series.nunique.html
   nunique_filtered_authors = filtered_authors.nunique()
   print(f'Anzahl unterschiedlicher Nutzer im Reddit-Datensatz:\n{nunique_filtered_authors}\n')
+  
+  # Return all unique authors 
   # https://pandas.pydata.org/docs/reference/api/pandas.Series.unique.html
   unique_filtered_authors = filtered_authors.unique()
-  print(f'Folgende Nutzer gefunden:\n{unique_filtered_authors}\n')
-  # print(filtered_authors)
-  # filtered_authors.to_csv('Outputs/filtered_authors.csv', index=False, encoding='utf-8-sig')
-  # print(authors)
+
+  # Save all unique authors to csv file
+  # https://www.geeksforgeeks.org/python/python-save-list-to-csv/
+  # https://numpy.org/doc/stable/reference/generated/numpy.savetxt.html
+  np.savetxt(UNIQUE_FILTERED_AUTHORS_CSV_PATH, unique_filtered_authors, delimiter=',', fmt='%s')
+
+  # Return a Series with count of unique authors 
   # reset_index for writing in csv for two columns, instead of one, if not .reset_index() author is index
   # https://pandas.pydata.org/docs/reference/api/pandas.Series.value_counts.html
   # https://pandas.pydata.org/docs/reference/api/pandas.Series.head.html
   # https://pandas.pydata.org/docs/reference/api/pandas.Series.reset_index.html
   most_active_authors_df = filtered_authors.value_counts().head(10).reset_index()
-  # print(most_active_authors_df)
+
+  # Define column headings and write to csv file
   most_active_authors_df.columns = ['Nutzer', 'Anzahl Posts/Kommentare']
   most_active_authors_df.to_csv(MOST_ACTIVE_AUTHORS_CSV_PATH, index=False, encoding='utf-8-sig')
-
-
-  # filtered_authors = [a for a in authors if a not in STANDARD_AUTHORS]
-  # author_counts = Counter(filtered_authors)
-  # most_active_authors = author_counts.most_common(10)
-  # most_active_authors_df = pd.DataFrame(most_active_authors, columns=['Nutzer', 'Anzahl Posts/Kommentare'])
-  # most_active_authors_df.to_csv(MOST_ACTIVE_AUTHORS_CSV_PATH, index=False, encoding='utf-8-sig')
-  # print(f'most_active_authors: {most_active_authors}')
 
   # Extract most used flairs
   flairs = munich_data_df['flair'].dropna()
   nunique_flairs = flairs.nunique()
   print(f'Anzahl unterschiedlicher Flairs im Reddit-Datensatz:\n{nunique_flairs}\n')
   unique_flairs = flairs.unique()
-  print(f'Folgende Flairs gefunden:\n{unique_flairs}\n')
-  count_flairs = flairs.value_counts()
-  # print(f'count_flairs:\n{count_flairs}\n')
+  
+  # Save all unique flairs to csv file
+  np.savetxt(UNIQUE_FLAIRS_CSV_PATH, unique_flairs, delimiter=',', fmt='%s')
+
+  # Return a Series with count of unique authors 
+  # reset_index for writing in csv for two columns, instead of one, if not .reset_index() flair is index 
   most_common_flairs_df = flairs.value_counts().head(10).reset_index()
+
+  # Define column headings and write to csv file
   most_common_flairs_df.columns = ['Flairs', 'Anzahl Flairs']
   most_common_flairs_df.to_csv(MOST_COMMON_FLAIRS_CSV_PATH, index=False, encoding='utf-8-sig')
-  
-  # flairs = munich_data_df['flair'].dropna().tolist()
-  # flair_counts = Counter(flairs)
-  # most_common_flairs = flair_counts.most_common(10)
-  # print(f'most_common_flairs: {most_common_flairs}')
 
 
   # ---------------------------- TF-IDF and LDA -------------------------------------------------
 
   # TF-IDF
   # https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
-  vectorizer = TfidfVectorizer(use_idf=True,
-                               min_df=5,
-                               max_df=0.90,
-                               smooth_idf=True
+  # Converts posts/comments from text_corpus_list to a matrix of TF-IDF featurs, where words are weighted
+  # Matrix contains importance of specific words relative to whode post/comment collection from text_corpus_list 
+  vectorizer = TfidfVectorizer(use_idf=True, # Enable inverse-document-frequency (IDF)
+                               min_df=5, # Ignore terms with document frequency lower than 5
+                               max_df=0.90, # Ignore terms with document frequency higher than 90%
+                               smooth_idf=True # Prevents zero divisions by adding one to document frequencies by default
                                )
+  # Learn voocabulary from text_corpus_list and return sparse matrix 
+  # of (n_samples, n_features) Tf-idf-weighted document-term matrix
   model = vectorizer.fit_transform(text_corpus_list)
+
+  # Get output feature names for transformation
   feature_names = vectorizer.get_feature_names_out()
-  # print(len(feature_names))
 
   # Latent Dirichlet Allocation (LDA)
   # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html
   # https://peps.python.org/pep-0008/#when-to-use-trailing-commas
-  lda_model = LatentDirichletAllocation(n_components=5,
-                                        learning_method='online',
-                                        random_state=42,
-                                        max_iter=10,
-                                        n_jobs=-2,
-                                        evaluate_every=1,
-                                        verbose=1
+  lda_model = LatentDirichletAllocation(n_components=5, # Number of topics to discover
+                                        learning_method='online', # Method used to update model components (due to large data set 'online' is used)
+                                        random_state=42, # Fixed parameter to control random number generator used to produce same results accross different calls
+                                        max_iter=10, # Maximum number of passes over the training data
+                                        n_jobs=-2, # Use all Threads of CPU except for one
+                                        evaluate_every=1, # Evaluate perplexity for each iteration
+                                        verbose=1 # Verbose information during training
                                         )
-  lda_top = lda_model.fit_transform(model)
-  # print(f'\nlda_top:\n{lda_top}\n')
-
-  # dfs_top_words_result = dfs_top_words(lda_model, feature_names, N_TOP_WORDS)
-  # print(f'\ndfs_top_words:\n{dfs_top_words_result}\n')
-  # dfs_top_words_result.to_csv('/home/user/Development/Projekt_Data_Analysis/Reddit/output.csv', index=False, encoding='utf-8-sig')
+  
+  print('Start Training')
+  # Train model
+  lda_model.fit(model)
+  print('End Training')
+  
+  # Format top words with each weight from each topic as dictionary
   lda_results = top_words_in_json_format(lda_model, feature_names, N_TOP_WORDS)
-  # print(lda_results)
 
-  # Write results as json to lda_results.json
+  # Write results from LDA as json to lda_results.json
   # https://www.geeksforgeeks.org/python/write-multiple-variables-to-a-file-using-python/
   # https://www.geeksforgeeks.org/python/how-to-convert-python-dictionary-to-json/
   with open(LDA_RESULTS_JSON_PATH, 'w') as file:
@@ -377,15 +407,8 @@ def main():
   
 
   # ---------------------------- Plot results ----------------------------------------------------
-  
-  # plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer', 'Top 10 der aktivsten Nutzer', MOST_ACTIVE_AUTHORS_PNG_PATH)
-  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer', MOST_ACTIVE_AUTHORS_PNG_PATH)
-  # plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs', 'Top 10 der meist verwendeten Flairs', MOST_COMMON_FLAIRS_PNG_PATH)
-  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs', MOST_COMMON_FLAIRS_PNG_PATH)
-
-  # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html#gallery-examples
-  # https://scikit-learn.org/stable/auto_examples/applications/plot_topics_extraction_with_nmf_lda.html
-  # plot_top_words(lda_model, feature_names, N_TOP_WORDS, 'Themen nach Latent Dirichlet Allocation (LDA)')
+  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer')
+  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs')
   plot_top_words(lda_model, feature_names, N_TOP_WORDS)
 
   return munich_data_df
