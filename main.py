@@ -137,8 +137,17 @@ def get_data_from_reddit(subreddit):
 #   else:
 #     return lemmatizer.lemmatize(word,pos)
 
+def detect_language(text):
+  if pd.isna(text) or not str(text).strip():
+    return 'empty_text'
+  try:
+    return detect(text)
+  except LangDetectException:
+    return 'unknown'
 
-def process(text, custom_stopwords, tagger):
+
+
+def process(text, custom_stopwords, tagger, is_title, clean_text):
   """
   Additional pre-processing steps for each 'full text' in munich_data_df
   """
@@ -146,12 +155,17 @@ def process(text, custom_stopwords, tagger):
   lan = ''
 
   # Detect language
-  if pd.isna(text) or not str(text).strip():
-    lan = 'empty_text'
-  try:
-    lan = detect(text)
-  except LangDetectException:
-    lan = 'unknown'
+  # if pd.isna(text) or not str(text).strip():
+  #   lan = 'empty_text'
+  # try:
+  #   lan = detect(text)
+  # except LangDetectException:
+  #   lan = 'unknown'
+
+  # Check whether normal text from post/comments or title is processed for
+  # language detection by title based on language of whole text grouped by post_id
+  lan = detect_language(text) if not is_title else detect_language(clean_text)
+
 
   # # Only english or german are valid languages
   # if lan != 'en' or lan != 'de':
@@ -206,7 +220,6 @@ def process(text, custom_stopwords, tagger):
 
     clean_tokens_de_string = ' '.join(clean_tokens_de)
     return clean_tokens_de_string
-
 
 
   return ''
@@ -362,6 +375,8 @@ def main():
   munich_data_df['title'] = munich_data_df['title'].fillna('')
   munich_data_df['text'] = munich_data_df['text'].fillna('')
 
+  
+
   # Filter out STANDARD_AUTHORS
   # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.isin.html
   # https://medium.com/@heyamit10/understanding-isin-with-not-in-pandas-b20099c4ed63
@@ -370,7 +385,8 @@ def main():
   # anzahl_übrig = len(munich_data_df_rm_std_author[munich_data_df_rm_std_author['author'].isin(STANDARD_AUTHORS)])
   # print(f'anzahl_übrig: {anzahl_übrig}')
 
-  munich_data_df_rm_std_author['clean_text'] = munich_data_df_rm_std_author['text'].apply(process, custom_stopwords=custom_stopwords, tagger=hanover_tagger)
+  # Before goupby data pre-processing due to different used languages for each post
+  munich_data_df_rm_std_author['clean_text'] = munich_data_df_rm_std_author['text'].apply(process, custom_stopwords=custom_stopwords, tagger=hanover_tagger, is_title=False, clean_text=None)
   munich_data_df_rm_std_author.to_csv('Outputs/munich_data_df_rm_std_author.csv', index=False, encoding='utf-8-sig')
   
   munich_data_df_groupby_post_id = munich_data_df_rm_std_author.groupby('post_id').agg(
@@ -379,14 +395,44 @@ def main():
     clean_text=pd.NamedAgg(column='clean_text', aggfunc=join_post_id_text)
   ).reset_index()
 
+  # Data pre-processing of title
+  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.apply.html
+  # https://stackoverflow.com/questions/13331698/how-to-apply-a-function-to-two-columns-of-pandas-dataframe
+  # munich_data_df_groupby_post_id['clean_title'] = munich_data_df_groupby_post_id['title'].apply(process, custom_stopwords=custom_stopwords, tagger=hanover_tagger, is_title=True, clean_text=munich_data_df_groupby_post_id['clean_text'])
+  munich_data_df_groupby_post_id['clean_title'] = munich_data_df_groupby_post_id.apply(lambda x: process(x['title'],
+                                                                                                        custom_stopwords=custom_stopwords,
+                                                                                                        tagger=hanover_tagger,
+                                                                                                        is_title=True,
+                                                                                                        clean_text=x['clean_text']
+                                                                                                        ),
+                                                                                                        axis=1)
+  
+
+
+  munich_data_df_groupby_post_id['full_text'] = munich_data_df_groupby_post_id['title'] + munich_data_df_groupby_post_id['clean_text']
+
   munich_data_df_groupby_post_id.to_csv('Outputs/munich_data_df_groupby_post_id.csv', index=False, encoding='utf-8-sig')
 
   text_corpus_list_groupby_post_id = munich_data_df_groupby_post_id.loc[
-    munich_data_df_groupby_post_id['clean_text'].str.strip() != '',
-    'clean_text'
+    munich_data_df_groupby_post_id['full_text'].str.strip() != '',
+    'full_text'
   ].tolist()
 
-  print(f'\ntext_corpus_list_groupby_post_id:\n{text_corpus_list_groupby_post_id}\n')
+  # for i in text_corpus_list_groupby_post_id:
+  #   print(f'\n{i}\n')
+  # print(f'\ntext_corpus_list_groupby_post_id:\n{len(text_corpus_list_groupby_post_id)}\n')
+
+  # print(f'\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n')
+
+  text_corpus_list = munich_data_df.loc[
+    munich_data_df['text'].str.strip() != '',
+    'text'
+  ].tolist()
+
+  # for i in text_corpus_list:
+  #   print(f'\n{i}\n')
+  # print(f'\text_corpus_list:\n{len(text_corpus_list)}\n')
+
 
   """
 
