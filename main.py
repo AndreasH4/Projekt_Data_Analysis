@@ -13,11 +13,15 @@ import seaborn as sns
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
+from sklearn.decomposition import TruncatedSVD
 import json
 from dotenv import load_dotenv
 import numpy as np
 from HanTa import HanoverTagger as ht
 from langdetect import detect, LangDetectException
+from gensim.test.utils import common_corpus, common_dictionary
+from gensim.models.coherencemodel import CoherenceModel
+
 
 
 # ---------------------------- CONSTANTS --------------------------------
@@ -248,6 +252,20 @@ def top_words_in_dict_format(lda_model, feature_names, n_top_words):
 
 
 
+def top_words_in_list_format(model, feature_names, n_top_words):
+  """
+  Write top words in list of list of string
+  """
+
+  topics = {}
+
+  for topic_idx, topic in enumerate(model.components_):
+    print(topic)
+  
+  return None
+
+
+
 def plot_top_words(model, feature_names, n_top_words):
   """
   Plot top words/weights from LDA
@@ -469,11 +487,30 @@ def main():
     json.dump(lda_results, file, ensure_ascii=False, indent=2)
   
 
-  # ---------------------------- Plot results ----------------------------------------------------
-  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer')
-  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs')
-  plot_top_words(lda_model, feature_names, N_TOP_WORDS)
-  return munich_data_df
+
+
+# ---------------------------------- LSA ------------------------------------------------------
+
+# https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.TruncatedSVD.html
+lsa_model = TruncatedSVD(n_components=5, # Number of topics to discover
+                         algorithm='randomized',
+                         n_iter=10
+                         )
+lsa = lsa_model.fit_transform(model)
+
+lsa_results = top_words_in_list_format(lsa_model, feature_names, N_TOP_WORDS)
+
+
+# ---------------------------- Themenkohärenz ------------------------------------------------
+
+cm = CoherenceModel(topics=lsa_results, corpus=common_corpus, dictionary=common_dictionary, coherence='u_mass')
+coherence = cm.get_coherence()
+
+# ---------------------------- Plot results ----------------------------------------------------
+plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer')
+plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs')
+plot_top_words(lda_model, feature_names, N_TOP_WORDS)
+return munich_data_df
 
 
 if __name__=='__main__':
