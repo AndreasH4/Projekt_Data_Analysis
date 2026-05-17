@@ -19,8 +19,8 @@ from dotenv import load_dotenv
 import numpy as np
 from HanTa import HanoverTagger as ht
 from langdetect import detect, LangDetectException
-from gensim.test.utils import common_corpus, common_dictionary
 from gensim.models.coherencemodel import CoherenceModel
+from gensim.corpora import Dictionary
 
 
 
@@ -251,18 +251,23 @@ def top_words_in_dict_format(lda_model, feature_names, n_top_words):
   return lda_results
 
 
-
+# https://radimrehurek.com/gensim/models/coherencemodel.html
 def top_words_in_list_format(model, feature_names, n_top_words):
   """
   Write top words in list of list of string
   """
 
-  topics = {}
+  topics = []
 
   for topic_idx, topic in enumerate(model.components_):
-    print(topic)
+    top_features_ind = topic.argsort()[-n_top_words:]
+    top_features_ind_rev = top_features_ind[::-1]
+    top_features = feature_names[top_features_ind_rev]
+    
+    top_features_list = top_features.tolist()
+    topics.append(top_features_list)
   
-  return None
+  return topics
 
 
 
@@ -371,6 +376,12 @@ def main():
   # Before goupby data pre-processing due to different used languages for each post
   print('Start process posts/comments')
   munich_data_df_rm_std_author['clean_text'] = munich_data_df_rm_std_author['text'].apply(process, custom_stopwords=custom_stopwords, tagger=hanover_tagger, is_title=False, clean_text=None)
+  # https://stackoverflow.com/questions/74105047/how-to-drop-rows-with-empty-string-values-in-certain-columns
+  # Drop empty `clean_text`
+  munich_data_df_rows_to_drop = munich_data_df_rm_std_author[munich_data_df_rm_std_author['clean_text']==''].index
+  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.drop.html
+  munich_data_df_rm_std_author.drop(munich_data_df_rows_to_drop, inplace=True)
+
   munich_data_df_rm_std_author.to_csv('Outputs/munich_data_df_rm_std_author.csv', index=False, encoding='utf-8-sig')
   print('End pre-process posts/comments')
 
@@ -489,28 +500,55 @@ def main():
 
 
 
-# ---------------------------------- LSA ------------------------------------------------------
+  # ---------------------------------- LSA ------------------------------------------------------
 
-# https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.TruncatedSVD.html
-lsa_model = TruncatedSVD(n_components=5, # Number of topics to discover
-                         algorithm='randomized',
-                         n_iter=10
-                         )
-lsa = lsa_model.fit_transform(model)
+  # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.TruncatedSVD.html
+  lsa_model = TruncatedSVD(n_components=5, # Number of topics to discover
+                          algorithm='randomized',
+                          n_iter=10
+                          )
+  lsa = lsa_model.fit_transform(model)
 
-lsa_results = top_words_in_list_format(lsa_model, feature_names, N_TOP_WORDS)
+  lsa_results = top_words_in_list_format(lsa_model, feature_names, N_TOP_WORDS)
+  print(f'\nlsa_results: {lsa_results}\n')
+
+  # ---------------------------- Themenkohärenz ------------------------------------------------
 
 
-# ---------------------------- Themenkohärenz ------------------------------------------------
+  # https://radimrehurek.com/gensim/models/coherencemodel.html
+  # https://radimrehurek.com/gensim/corpora/dictionary.html#gensim.corpora.dictionary.Dictionary
+  # corpus = 
+  # dictionary = 
+  # cm = CoherenceModel(topics=lsa_results, corpus=common_corpus, dictionary=common_dictionary, coherence='u_mass')
+  # coherence = cm.get_coherence()
 
-cm = CoherenceModel(topics=lsa_results, corpus=common_corpus, dictionary=common_dictionary, coherence='u_mass')
-coherence = cm.get_coherence()
+  corpus = []
 
-# ---------------------------- Plot results ----------------------------------------------------
-plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer')
-plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs')
-plot_top_words(lda_model, feature_names, N_TOP_WORDS)
-return munich_data_df
+  # Create iterable of iterable of str
+  documents = [text_corpus.split() for text_corpus in text_corpus_list_groupby_post_id]
+  print(f'\n\ndocuments: {documents}')
+
+  dictionary = Dictionary(documents)
+
+  for document in documents:
+    corpus.append(dictionary.doc2bow(document))
+
+  cm_lsa = CoherenceModel(topics=lsa_results, corpus=corpus, dictionary=dictionary, coherence='u_mass')
+  coherence_lsa = cm_lsa.get_coherence()
+  print(f'\n\ncoherence_lsa: {coherence_lsa}')
+
+  cm_lda = CoherenceModel(topics=lda_results, corpus=corpus, dictionary=dictionary, coherence='u_mass')
+  coherence_lda = cm_lda.get_coherence()
+  print(f'\n\ncoherence_lda: {coherence_lda}')
+
+
+
+
+  # ---------------------------- Plot results ----------------------------------------------------
+  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer')
+  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs')
+  plot_top_words(lda_model, feature_names, N_TOP_WORDS)
+  return munich_data_df
 
 
 if __name__=='__main__':
