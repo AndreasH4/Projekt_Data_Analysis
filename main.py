@@ -40,6 +40,7 @@ MOST_ACTIVE_AUTHORS_CSV_PATH = 'Outputs/most_active_authors.csv'
 MOST_COMMON_FLAIRS_CSV_PATH = 'Outputs/most_common_flairs.csv'
 UNIQUE_AUTHORS_CSV_PATH = 'Outputs/unique_authors.csv'
 UNIQUE_FLAIRS_CSV_PATH = 'Outputs/unique_flairs.csv'
+MUNICH_DATA_DF_GROUPBY_POST_ID = 'Outputs/munich_data_df_groupby_post_id.csv'
 
 
 # -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
@@ -360,14 +361,13 @@ def main():
 
   # ---------------------------- Pre-Processing -------------------------------------------------
   print('Start Pre-Processing')
+
   # Read Reddit-Data from csv-file
   munich_data_df = pd.read_csv(MUNICH_DATA_PATH)
 
   # Replace NaN values with empty strings
   munich_data_df['title'] = munich_data_df['title'].fillna('')
   munich_data_df['text'] = munich_data_df['text'].fillna('')
-
-  
 
   # Filter out STANDARD_AUTHORS
   munich_data_df_rm_std_author = munich_data_df[~munich_data_df['author'].isin(STANDARD_AUTHORS)]
@@ -376,11 +376,11 @@ def main():
   # Before goupby data pre-processing due to different used languages for each post
   print('Start process posts/comments')
   munich_data_df_rm_std_author['clean_text'] = munich_data_df_rm_std_author['text'].apply(process, custom_stopwords=custom_stopwords, tagger=hanover_tagger, is_title=False, clean_text=None)
-  # https://stackoverflow.com/questions/74105047/how-to-drop-rows-with-empty-string-values-in-certain-columns
-  # Drop empty `clean_text`
-  munich_data_df_rows_to_drop = munich_data_df_rm_std_author[munich_data_df_rm_std_author['clean_text']==''].index
-  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.drop.html
-  munich_data_df_rm_std_author.drop(munich_data_df_rows_to_drop, inplace=True)
+  # # https://stackoverflow.com/questions/74105047/how-to-drop-rows-with-empty-string-values-in-certain-columns
+  # # Drop empty `clean_text`
+  # munich_data_df_rows_to_drop = munich_data_df_rm_std_author[munich_data_df_rm_std_author['clean_text']==''].index
+  # # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.drop.html
+  # munich_data_df_rm_std_author.drop(munich_data_df_rows_to_drop, inplace=True)
 
   munich_data_df_rm_std_author.to_csv('Outputs/munich_data_df_rm_std_author.csv', index=False, encoding='utf-8-sig')
   print('End pre-process posts/comments')
@@ -402,9 +402,24 @@ def main():
                                                                                       axis=1)
   
 
+  # With str.strip() remove case, where clean_title or clean_text are empty strings, but clean_title and clean_text finished pre-processing, so
+  # they can be analysed via LSA and LDA
+  munich_data_df_groupby_post_id['full_text'] = (munich_data_df_groupby_post_id['clean_title'] + ' ' + munich_data_df_groupby_post_id['clean_text']).str.strip()
+  
+  # https://stackoverflow.com/questions/74105047/how-to-drop-rows-with-empty-string-values-in-certain-columns
+  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.drop.html
+  # Drop empty full_text
+  munich_data_df_rows_to_drop = munich_data_df_groupby_post_id[munich_data_df_groupby_post_id['full_text'] == ''].index
+  munich_data_df_groupby_post_id.drop(munich_data_df_rows_to_drop, inplace=True)
+  # Reset index
+  munich_data_df_groupby_post_id.reset_index(drop=True, inplace=True)
+  
+  munich_data_df_groupby_post_id.to_csv(MUNICH_DATA_DF_GROUPBY_POST_ID, index=False, encoding='utf-8-sig')
 
-  munich_data_df_groupby_post_id['full_text'] = munich_data_df_groupby_post_id['clean_title'] + ' ' + munich_data_df_groupby_post_id['clean_text']
-  munich_data_df_groupby_post_id.to_csv('Outputs/munich_data_df_groupby_post_id.csv', index=False, encoding='utf-8-sig')
+  test_load_csv_munich_data_df_groupby_post_id = pd.read_csv(MUNICH_DATA_DF_GROUPBY_POST_ID)
+  if test_load_csv_munich_data_df_groupby_post_id['full_text'].equals(munich_data_df_groupby_post_id['full_text']):
+    print(f'Fulltext test_load_csv_munich_data_df_groupby_post_id ist gleich munich_data_df_groupby_post_id')
+  
   print('End pre-process titles')
 
   text_corpus_list_groupby_post_id = munich_data_df_groupby_post_id['full_text'].tolist()
@@ -541,7 +556,25 @@ def main():
   coherence_lda = cm_lda.get_coherence()
   print(f'\n\ncoherence_lda: {coherence_lda}')
 
+  # Themenkohärenz LSA mit c_v
+  cm_lsa_cv = CoherenceModel(topics=lsa_results,
+                            texts=documents,
+                            dictionary=dictionary,
+                            coherence='c_v'
+                            )
+  
+  coherence_lsa_cv = cm_lsa_cv.get_coherence()
+  print(f'coherence_lsa_cv: {coherence_lsa_cv}')
 
+  # Themenkohärenz LDA mit c_v
+  cm_lda_cv = CoherenceModel(topics=lda_results,
+                            texts=documents,
+                            dictionary=dictionary,
+                            coherence='c_v'
+                            )
+
+  coherence_lda_cv = cm_lda_cv.get_coherence()
+  print(f'coherence_lda_cv: {coherence_lda_cv}')
 
 
   # ---------------------------- Plot results ----------------------------------------------------
