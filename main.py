@@ -35,12 +35,16 @@ CUSTOM_STOPWORDS_PATH = 'Inputs/custom_stopwords.json'
 
 # OUTPUTS
 OUTPUT_DEBUG_PATH = 'Outputs/debug.csv'
-LDA_RESULTS_JSON_PATH = 'Outputs/lda_results.json'
+LDA_TFIDF_RESULTS_JSON_PATH = 'Outputs/lda_tfidf_results_json.json'
+LDA_TFIDF_RESULTS_LIST_PATH = 'Outputs/lda_tfidf_results_list.json'
+LDA_COUNT_VECTORIZER_RESULTS_JSON_PATH = 'Outputs/lda_count_vectorizer_results_json.json'
+LDA_COUNT_VECTORIZER_RESULTS_LIST_PATH = 'Outputs/lda_count_vectorizer_results_list.json'
+LSA_RESULTS_JSON_PATH = 'Outputs/lsa_results.json'
 MOST_ACTIVE_AUTHORS_CSV_PATH = 'Outputs/most_active_authors.csv'
 MOST_COMMON_FLAIRS_CSV_PATH = 'Outputs/most_common_flairs.csv'
 UNIQUE_AUTHORS_CSV_PATH = 'Outputs/unique_authors.csv'
 UNIQUE_FLAIRS_CSV_PATH = 'Outputs/unique_flairs.csv'
-MUNICH_DATA_DF_GROUPBY_POST_ID = 'Outputs/munich_data_df_groupby_post_id.csv'
+MUNICH_DATA_DF_GROUPBY_POST_ID_PATH = 'Outputs/munich_data_df_groupby_post_id.csv'
 
 
 # -------------------- DOWNLOAD NLTK PACKAGES ---------------------------
@@ -234,7 +238,7 @@ def top_words_in_dict_format(lda_model, feature_names, n_top_words):
   Write top words/weights from LDA in dictionary format
   """
 
-  lda_results = {}
+  lda_results_json = {}
 
   for topic_idx, topic in enumerate(lda_model.components_):
     topic_title_idx = f'Thema {topic_idx+1}'
@@ -248,8 +252,8 @@ def top_words_in_dict_format(lda_model, feature_names, n_top_words):
 
     topic_dict = dict(zip(top_features_list, weights_list))
 
-    lda_results[topic_title_idx] = topic_dict
-  return lda_results
+    lda_results_json[topic_title_idx] = topic_dict
+  return lda_results_json
 
 
 # https://radimrehurek.com/gensim/models/coherencemodel.html
@@ -414,9 +418,9 @@ def main():
   # Reset index
   munich_data_df_groupby_post_id.reset_index(drop=True, inplace=True)
   
-  munich_data_df_groupby_post_id.to_csv(MUNICH_DATA_DF_GROUPBY_POST_ID, index=False, encoding='utf-8-sig')
+  munich_data_df_groupby_post_id.to_csv(MUNICH_DATA_DF_GROUPBY_POST_ID_PATH, index=False, encoding='utf-8-sig')
 
-  test_load_csv_munich_data_df_groupby_post_id = pd.read_csv(MUNICH_DATA_DF_GROUPBY_POST_ID)
+  test_load_csv_munich_data_df_groupby_post_id = pd.read_csv(MUNICH_DATA_DF_GROUPBY_POST_ID_PATH)
   if test_load_csv_munich_data_df_groupby_post_id['full_text'].equals(munich_data_df_groupby_post_id['full_text']):
     print(f'Fulltext test_load_csv_munich_data_df_groupby_post_id ist gleich munich_data_df_groupby_post_id')
   
@@ -488,10 +492,10 @@ def main():
   model = vectorizer.fit_transform(text_corpus_list_groupby_post_id)
 
   # Get output feature names for transformation
-  feature_names = vectorizer.get_feature_names_out()
+  feature_names_tfidf = vectorizer.get_feature_names_out()
 
   # Latent Dirichlet Allocation (LDA)
-  lda_model = LatentDirichletAllocation(n_components=5, # Number of topics to discover
+  lda_tfidf_model = LatentDirichletAllocation(n_components=5, # Number of topics to discover
                                         learning_method='online', # Method used to update model components (due to large data set 'online' is used)
                                         random_state=42, # Fixed parameter to control random number generator used to produce same results accross different calls
                                         max_iter=10, # Maximum number of passes over the training data
@@ -500,19 +504,64 @@ def main():
                                         verbose=1 # Verbose information during training
                                         )
   
-  print('Start Training')
+  print('Start Training TF-IDF and LDA')
   # Train model
-  lda_model.fit(model)
-  print('End Training')
+  lda_tfidf_model.fit(model)
+  print('End Training TF-IDF and LDA')
   
   # Format top words with each weight from each topic as dictionary
-  lda_results = top_words_in_dict_format(lda_model, feature_names, N_TOP_WORDS)
+  lda_tfidf_results_json = top_words_in_dict_format(lda_tfidf_model, feature_names_tfidf, N_TOP_WORDS)
 
-  # Write results from LDA as json to lda_results.json
-  with open(LDA_RESULTS_JSON_PATH, 'w') as file:
-    json.dump(lda_results, file, ensure_ascii=False, indent=2)
+  # Format top words as list of list of strings for coherence score
+  lda_tfidf_results_list = top_words_in_list_format(lda_tfidf_model, feature_names_tfidf, N_TOP_WORDS)
+
+  # Write results from LDA as json to lda_tfidf_results_json.json
+  with open(LDA_TFIDF_RESULTS_JSON_PATH, 'w') as file:
+    json.dump(lda_tfidf_results_json, file, ensure_ascii=False, indent=2)
   
+  # Write results from LDA as list to lda_tfidf_results_list.json
+  with open(LDA_TFIDF_RESULTS_LIST_PATH, 'w') as file:
+    json.dump(lda_tfidf_results_list, file, ensure_ascii=False, indent=2)
 
+
+  # --------------------- CountVectorizer and LDA ----------------------------------------------
+
+  # Latent Dirichlet Allocation (LDA)
+  lda_count_vectorizer_model = LatentDirichletAllocation(n_components=5, # Number of topics to discover
+                                        learning_method='online', # Method used to update model components (due to large data set 'online' is used)
+                                        random_state=42, # Fixed parameter to control random number generator used to produce same results accross different calls
+                                        max_iter=10, # Maximum number of passes over the training data
+                                        n_jobs=-2, # Use all Threads of CPU except for one
+                                        evaluate_every=1, # Evaluate perplexity for each iteration
+                                        verbose=1 # Verbose information during training
+                                        )
+
+  vect = CountVectorizer(min_df=5,
+                        max_df=0.98
+                        )
+
+  data_vect = vect.fit_transform(text_corpus_list_groupby_post_id)
+
+  print('Start Training Count Vectorizer LDA')
+  lda_count_vectorizer_model.fit(data_vect)
+  print('End Training Count Vectorizer LDA')
+
+  # Get feature names
+  feature_names_count_vectorizer = vect.get_feature_names_out()
+  
+  # Format top words with each weight from each topic as dictionary
+  lda_count_vectorizer_results_json = top_words_in_dict_format(lda_count_vectorizer_model, feature_names_count_vectorizer, N_TOP_WORDS)
+
+  # Format top words as list of list of strings for coherence score
+  lda_count_vectorizer_results_list = top_words_in_list_format(lda_count_vectorizer_model, feature_names_count_vectorizer, N_TOP_WORDS)
+
+  # Write results from LDA (CountVectorizer) as json to lda_count_vectorizer_results_json.json
+  with open(LDA_COUNT_VECTORIZER_RESULTS_JSON_PATH, 'w') as file:
+    json.dump(lda_count_vectorizer_results_json, file, ensure_ascii=False, indent=2)
+  
+  # Write results from LDA (CountVectorizer) as list to lda_count_vectorizer_results_list.json
+  with open(LDA_COUNT_VECTORIZER_RESULTS_LIST_PATH, 'w') as file:
+    json.dump(lda_count_vectorizer_results_list, file, ensure_ascii=False, indent=2)
 
 
   # ---------------------------------- LSA ------------------------------------------------------
@@ -522,65 +571,96 @@ def main():
                           algorithm='randomized',
                           n_iter=10
                           )
+  print('Start Training LSA')
   lsa = lsa_model.fit_transform(model)
+  print('End Training LSA')
 
-  lsa_results = top_words_in_list_format(lsa_model, feature_names, N_TOP_WORDS)
+  lsa_results = top_words_in_list_format(lsa_model, feature_names_tfidf, N_TOP_WORDS)
   print(f'\nlsa_results: {lsa_results}\n')
 
-  # ---------------------------- Themenkohärenz ------------------------------------------------
+  # Write results from LSA as json to lsa_results.json
+  with open(LSA_RESULTS_JSON_PATH, 'w') as file:
+    json.dump(lsa_results, file, ensure_ascii=False, indent=2)
 
+  # ---------------------------- Coherence Score ------------------------------------------------
 
-  # https://radimrehurek.com/gensim/models/coherencemodel.html
-  # https://radimrehurek.com/gensim/corpora/dictionary.html#gensim.corpora.dictionary.Dictionary
-  # corpus = 
-  # dictionary = 
-  # cm = CoherenceModel(topics=lsa_results, corpus=common_corpus, dictionary=common_dictionary, coherence='u_mass')
-  # coherence = cm.get_coherence()
 
   corpus = []
 
+  # https://radimrehurek.com/gensim/models/coherencemodel.html
   # Create iterable of iterable of str
   documents = [text_corpus.split() for text_corpus in text_corpus_list_groupby_post_id]
-  print(f'\n\ndocuments: {documents}')
+  # print(f'\n\ndocuments: {documents}')
 
   dictionary = Dictionary(documents)
 
   for document in documents:
     corpus.append(dictionary.doc2bow(document))
 
-  cm_lsa = CoherenceModel(topics=lsa_results, corpus=corpus, dictionary=dictionary, coherence='u_mass')
+  cm_lsa = CoherenceModel(topics=lsa_results,
+                         corpus=corpus,
+                         dictionary=dictionary,
+                         coherence='u_mass'
+                         )
   coherence_lsa = cm_lsa.get_coherence()
   print(f'\n\ncoherence_lsa: {coherence_lsa}')
 
-  cm_lda = CoherenceModel(topics=lda_results, corpus=corpus, dictionary=dictionary, coherence='u_mass')
-  coherence_lda = cm_lda.get_coherence()
-  print(f'\n\ncoherence_lda: {coherence_lda}')
+  cm_lda_tfidf = CoherenceModel(topics=lda_tfidf_results_list,
+                               corpus=corpus,
+                               dictionary=dictionary,
+                               coherence='u_mass'
+                               )
+  coherence_lda_tfidf = cm_lda_tfidf.get_coherence()
+  print(f'\n\ncoherence_lda_tfidf: {coherence_lda_tfidf}')
 
-  # Themenkohärenz LSA mit c_v
+  cm_lda_count_vectorizer = CoherenceModel(topics=lda_count_vectorizer_results_list,
+                               corpus=corpus,
+                               dictionary=dictionary,
+                               coherence='u_mass'
+                               )
+  coherence_lda_count_vectorizer = cm_lda_count_vectorizer.get_coherence()
+  print(f'\n\ncoherence_lda_count_vectorizer: {coherence_lda_count_vectorizer}')
+  
+
+
+  # Coherence Score LSA with c_v
   cm_lsa_cv = CoherenceModel(topics=lsa_results,
                             texts=documents,
                             dictionary=dictionary,
                             coherence='c_v'
                             )
-  
   coherence_lsa_cv = cm_lsa_cv.get_coherence()
   print(f'coherence_lsa_cv: {coherence_lsa_cv}')
 
-  # Themenkohärenz LDA mit c_v
-  cm_lda_cv = CoherenceModel(topics=lda_results,
+  # Coherence Score TF-IDF LDA with c_v
+  cm_lda_tfidf_cv = CoherenceModel(topics=lda_tfidf_results_list,
                             texts=documents,
                             dictionary=dictionary,
                             coherence='c_v'
                             )
+  coherence_lda_tfidf_cv = cm_lda_tfidf_cv.get_coherence()
+  print(f'coherence_lda_tfidf_cv: {coherence_lda_tfidf_cv}')
 
-  coherence_lda_cv = cm_lda_cv.get_coherence()
-  print(f'coherence_lda_cv: {coherence_lda_cv}')
+  # Coherence Score CountVectorizer LDA with c_v
+  cm_lda_count_vectorizer_cv = CoherenceModel(topics=lda_count_vectorizer_results_list,
+                            texts=documents,
+                            dictionary=dictionary,
+                            coherence='c_v'
+                            )
+  coherence_lda_count_vectorizer_cv = cm_lda_count_vectorizer_cv.get_coherence()
+  print(f'coherence_lda_count_vectorizer_cv: {coherence_lda_count_vectorizer_cv}')
 
 
   # ---------------------------- Plot results ----------------------------------------------------
+  # Headings of plots where set blank for including images to text for Finalisierungsphase
   plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer')
   plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs')
-  plot_top_words(lda_model, feature_names, N_TOP_WORDS)
+  print('\nPlotting TF-IDF and LDA Results:\n')
+  plot_top_words(lda_tfidf_model, feature_names_tfidf, N_TOP_WORDS)
+  print('\nPlotting CountVectorizer and LDA Results:\n')
+  plot_top_words(lda_count_vectorizer_model, feature_names_count_vectorizer, N_TOP_WORDS)
+  print('\nPlotting LSA Results:\n')
+  plot_top_words(lsa_model, feature_names_tfidf, N_TOP_WORDS)
   return munich_data_df
 
 
