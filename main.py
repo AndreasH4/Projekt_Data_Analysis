@@ -19,6 +19,8 @@ from dotenv import load_dotenv
 import numpy as np
 from HanTa import HanoverTagger as ht
 from langdetect import detect, LangDetectException
+from langdetect import DetectorFactory
+DetectorFactory.seed = 0
 from gensim.models.coherencemodel import CoherenceModel
 from gensim.corpora import Dictionary
 
@@ -499,7 +501,6 @@ def main():
                                         learning_method='online', # Method used to update model components (due to large data set 'online' is used)
                                         random_state=42, # Fixed parameter to control random number generator used to produce same results accross different calls
                                         max_iter=10, # Maximum number of passes over the training data
-                                        n_jobs=-2, # Use all Threads of CPU except for one
                                         evaluate_every=1, # Evaluate perplexity for each iteration
                                         verbose=1 # Verbose information during training
                                         )
@@ -531,7 +532,6 @@ def main():
                                         learning_method='online', # Method used to update model components (due to large data set 'online' is used)
                                         random_state=42, # Fixed parameter to control random number generator used to produce same results accross different calls
                                         max_iter=10, # Maximum number of passes over the training data
-                                        n_jobs=-2, # Use all Threads of CPU except for one
                                         evaluate_every=1, # Evaluate perplexity for each iteration
                                         verbose=1 # Verbose information during training
                                         )
@@ -568,8 +568,9 @@ def main():
 
   # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.TruncatedSVD.html
   lsa_model = TruncatedSVD(n_components=5, # Number of topics to discover
-                          algorithm='randomized',
-                          n_iter=10
+                          algorithm='randomized', # Randomized algorithm for SVD solver
+                          random_state=42, # Fixed parameter to control random number generator used to produce same results accross different calls
+                          n_iter=10 # Number of iterations for randomized SVD solver
                           )
   print('Start Training LSA')
   lsa = lsa_model.fit_transform(model)
@@ -597,58 +598,58 @@ def main():
   for document in documents:
     corpus.append(dictionary.doc2bow(document))
 
-  cm_lsa = CoherenceModel(topics=lsa_results,
+  cm_lsa_u_mass = CoherenceModel(topics=lsa_results,
                          corpus=corpus,
                          dictionary=dictionary,
                          coherence='u_mass'
                          )
-  coherence_lsa = cm_lsa.get_coherence()
-  print(f'\n\ncoherence_lsa: {coherence_lsa}')
+  coherence_lsa_u_mass = cm_lsa_u_mass.get_coherence()
+  print(f'\n\ncoherence_lsa_u_mass: {coherence_lsa_u_mass}')
 
-  cm_lda_tfidf = CoherenceModel(topics=lda_tfidf_results_list,
+  cm_lda_tfidf_u_mass = CoherenceModel(topics=lda_tfidf_results_list,
                                corpus=corpus,
                                dictionary=dictionary,
                                coherence='u_mass'
                                )
-  coherence_lda_tfidf = cm_lda_tfidf.get_coherence()
-  print(f'\n\ncoherence_lda_tfidf: {coherence_lda_tfidf}')
+  coherence_lda_tfidf_u_mass = cm_lda_tfidf_u_mass.get_coherence()
+  print(f'\n\ncoherence_lda_tfidf_u_mass: {coherence_lda_tfidf_u_mass}')
 
-  cm_lda_count_vectorizer = CoherenceModel(topics=lda_count_vectorizer_results_list,
+  cm_lda_count_vectorizer_u_mass = CoherenceModel(topics=lda_count_vectorizer_results_list,
                                corpus=corpus,
                                dictionary=dictionary,
                                coherence='u_mass'
                                )
-  coherence_lda_count_vectorizer = cm_lda_count_vectorizer.get_coherence()
-  print(f'\n\ncoherence_lda_count_vectorizer: {coherence_lda_count_vectorizer}')
+  coherence_lda_count_vectorizer_u_mass = cm_lda_count_vectorizer_u_mass.get_coherence()
+  print(f'\n\ncoherence_lda_count_vectorizer_u_mass: {coherence_lda_count_vectorizer_u_mass}')
   
 
 
   # Coherence Score LSA with c_v
-  cm_lsa_cv = CoherenceModel(topics=lsa_results,
+  cm_lsa_c_v = CoherenceModel(topics=lsa_results,
                             texts=documents,
                             dictionary=dictionary,
                             coherence='c_v'
                             )
-  coherence_lsa_cv = cm_lsa_cv.get_coherence()
-  print(f'coherence_lsa_cv: {coherence_lsa_cv}')
+  coherence_lsa_c_v = cm_lsa_c_v.get_coherence()
+  print(f'coherence_lsa_c_v: {coherence_lsa_c_v}')
 
   # Coherence Score TF-IDF LDA with c_v
-  cm_lda_tfidf_cv = CoherenceModel(topics=lda_tfidf_results_list,
+  cm_lda_tfidf_c_v = CoherenceModel(topics=lda_tfidf_results_list,
                             texts=documents,
                             dictionary=dictionary,
                             coherence='c_v'
                             )
-  coherence_lda_tfidf_cv = cm_lda_tfidf_cv.get_coherence()
-  print(f'coherence_lda_tfidf_cv: {coherence_lda_tfidf_cv}')
+  coherence_lda_tfidf_c_v = cm_lda_tfidf_c_v.get_coherence()
+  print(f'coherence_lda_tfidf_c_v: {coherence_lda_tfidf_c_v}')
 
   # Coherence Score CountVectorizer LDA with c_v
-  cm_lda_count_vectorizer_cv = CoherenceModel(topics=lda_count_vectorizer_results_list,
+  cm_lda_count_vectorizer_c_v = CoherenceModel(topics=lda_count_vectorizer_results_list,
                             texts=documents,
                             dictionary=dictionary,
                             coherence='c_v'
                             )
-  coherence_lda_count_vectorizer_cv = cm_lda_count_vectorizer_cv.get_coherence()
-  print(f'coherence_lda_count_vectorizer_cv: {coherence_lda_count_vectorizer_cv}')
+  coherence_lda_count_vectorizer_c_v = cm_lda_count_vectorizer_c_v.get_coherence()
+  print(f'coherence_lda_count_vectorizer_c_v: {coherence_lda_count_vectorizer_c_v}')
 
 
   # ---------------------------- Plot results ----------------------------------------------------
