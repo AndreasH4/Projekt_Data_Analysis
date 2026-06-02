@@ -528,12 +528,12 @@ def main():
   # --------------------- CountVectorizer and LDA ----------------------------------------------
 
   # Latent Dirichlet Allocation (LDA)
-  lda_count_vectorizer_model = LatentDirichletAllocation(n_components=5, # Number of topics to discover
-                                        learning_method='online', # Method used to update model components (due to large data set 'online' is used)
-                                        random_state=42, # Fixed parameter to control random number generator used to produce same results accross different calls
-                                        max_iter=10, # Maximum number of passes over the training data
-                                        evaluate_every=1, # Evaluate perplexity for each iteration
-                                        verbose=1 # Verbose information during training
+  lda_count_vectorizer_model = LatentDirichletAllocation(n_components=5,
+                                        learning_method='online',
+                                        random_state=42,
+                                        max_iter=10,
+                                        evaluate_every=1,
+                                        verbose=1
                                         )
 
   vect = CountVectorizer(min_df=5,
@@ -585,86 +585,105 @@ def main():
 
   # ---------------------------- Coherence Score ------------------------------------------------
 
-
   corpus = []
 
   # https://radimrehurek.com/gensim/models/coherencemodel.html
   # Create iterable of iterable of str
   documents = [text_corpus.split() for text_corpus in text_corpus_list_groupby_post_id]
-  # print(f'\n\ndocuments: {documents}')
 
   dictionary = Dictionary(documents)
 
   for document in documents:
     corpus.append(dictionary.doc2bow(document))
 
-  cm_lsa_u_mass = CoherenceModel(topics=lsa_results,
-                         corpus=corpus,
-                         dictionary=dictionary,
-                         coherence='u_mass'
-                         )
+  cm_lsa_u_mass = CoherenceModel(topics=lsa_results, # List of top words per topic
+                                corpus=corpus, # Corpus in BoW format
+                                dictionary=dictionary, # Gensim dictionary
+                                coherence='u_mass' # Used Coherence measure
+                                )
   coherence_lsa_u_mass = cm_lsa_u_mass.get_coherence()
-  print(f'\n\ncoherence_lsa_u_mass: {coherence_lsa_u_mass}')
+  print(f'\ncoherence_lsa_u_mass: {coherence_lsa_u_mass}')
 
   cm_lda_tfidf_u_mass = CoherenceModel(topics=lda_tfidf_results_list,
-                               corpus=corpus,
-                               dictionary=dictionary,
-                               coherence='u_mass'
-                               )
+                                      corpus=corpus,
+                                      dictionary=dictionary,
+                                      coherence='u_mass'
+                                      )
   coherence_lda_tfidf_u_mass = cm_lda_tfidf_u_mass.get_coherence()
-  print(f'\n\ncoherence_lda_tfidf_u_mass: {coherence_lda_tfidf_u_mass}')
+  print(f'coherence_lda_tfidf_u_mass: {coherence_lda_tfidf_u_mass}')
 
   cm_lda_count_vectorizer_u_mass = CoherenceModel(topics=lda_count_vectorizer_results_list,
-                               corpus=corpus,
-                               dictionary=dictionary,
-                               coherence='u_mass'
-                               )
+                                                 corpus=corpus,
+                                                 dictionary=dictionary,
+                                                 coherence='u_mass'
+                                                 )
   coherence_lda_count_vectorizer_u_mass = cm_lda_count_vectorizer_u_mass.get_coherence()
-  print(f'\n\ncoherence_lda_count_vectorizer_u_mass: {coherence_lda_count_vectorizer_u_mass}')
+  print(f'coherence_lda_count_vectorizer_u_mass: {coherence_lda_count_vectorizer_u_mass}')
   
 
 
   # Coherence Score LSA with c_v
-  cm_lsa_c_v = CoherenceModel(topics=lsa_results,
-                            texts=documents,
-                            dictionary=dictionary,
-                            coherence='c_v'
-                            )
+  cm_lsa_c_v = CoherenceModel(topics=lsa_results, # List of top words per topic
+                             texts=documents, # Tokenized texts
+                             dictionary=dictionary, # Gensim dictionary
+                             coherence='c_v' # Used Coherence measure
+                             )
   coherence_lsa_c_v = cm_lsa_c_v.get_coherence()
   print(f'coherence_lsa_c_v: {coherence_lsa_c_v}')
 
   # Coherence Score TF-IDF LDA with c_v
   cm_lda_tfidf_c_v = CoherenceModel(topics=lda_tfidf_results_list,
-                            texts=documents,
-                            dictionary=dictionary,
-                            coherence='c_v'
-                            )
+                                   texts=documents,
+                                   dictionary=dictionary,
+                                   coherence='c_v'
+                                   )
   coherence_lda_tfidf_c_v = cm_lda_tfidf_c_v.get_coherence()
   print(f'coherence_lda_tfidf_c_v: {coherence_lda_tfidf_c_v}')
 
   # Coherence Score CountVectorizer LDA with c_v
   cm_lda_count_vectorizer_c_v = CoherenceModel(topics=lda_count_vectorizer_results_list,
-                            texts=documents,
-                            dictionary=dictionary,
-                            coherence='c_v'
-                            )
+                                              texts=documents,
+                                              dictionary=dictionary,
+                                              coherence='c_v'
+                                              )
   coherence_lda_count_vectorizer_c_v = cm_lda_count_vectorizer_c_v.get_coherence()
   print(f'coherence_lda_count_vectorizer_c_v: {coherence_lda_count_vectorizer_c_v}')
 
 
   # ---------------------------- Plot results ----------------------------------------------------
   # Headings of plots where set blank for including images to text for Finalisierungsphase
-  plot_bar_chart(most_active_authors_df, 'Anzahl Posts/Kommentare', 'Nutzer')
-  plot_bar_chart(most_common_flairs_df, 'Anzahl Flairs', 'Flairs')
-  print('\nPlotting TF-IDF and LDA Results:\n')
-  plot_top_words(lda_tfidf_model, feature_names_tfidf, N_TOP_WORDS)
-  print('\nPlotting CountVectorizer and LDA Results:\n')
-  plot_top_words(lda_count_vectorizer_model, feature_names_count_vectorizer, N_TOP_WORDS)
-  print('\nPlotting LSA Results:\n')
-  plot_top_words(lsa_model, feature_names_tfidf, N_TOP_WORDS)
-  return munich_data_df
+  print('\nAktivsten Nutzer:\n')
+  plot_bar_chart(most_active_authors_df,
+                'Anzahl Posts/Kommentare',
+                'Nutzer'
+                )
+
+  print('\nHäufigsten Flairs:\n')
+  plot_bar_chart(most_common_flairs_df,
+                'Anzahl Flairs',
+                'Flairs'
+                )
+
+  print('\nErgebnisse TF-IDF und LDA:\n')
+  plot_top_words(lda_tfidf_model,
+                feature_names_tfidf,
+                N_TOP_WORDS
+                )
+  
+  print('\nErgebnisse CountVectorizer und LDA:\n')
+  plot_top_words(lda_count_vectorizer_model,
+                feature_names_count_vectorizer,
+                N_TOP_WORDS
+                )
+  
+  print('\nErgebnisse LSA:\n')
+  plot_top_words(lsa_model,
+                feature_names_tfidf,
+                N_TOP_WORDS
+                )
+  return
 
 
 if __name__=='__main__':
-  result = main()
+  main()
 
