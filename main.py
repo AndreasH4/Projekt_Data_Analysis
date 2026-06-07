@@ -323,7 +323,10 @@ def main():
   4. Pre-Process retrieved data
   5. Extract most active users and used flairs
   6. TF-IDF and LDA
-  7. Plot results
+  7. CountVectorizer and LDA
+  8. LSA
+  9. Coherence Score 
+  10. Plot results
   """
 
   # Initialize HanoverTagger
@@ -370,7 +373,7 @@ def main():
 
   # Read Reddit-Data from csv-file
   munich_data_df = pd.read_csv(MUNICH_DATA_PATH)
-
+  
   # Replace NaN values with empty strings
   munich_data_df['title'] = munich_data_df['title'].fillna('')
   munich_data_df['text'] = munich_data_df['text'].fillna('')
@@ -381,7 +384,15 @@ def main():
 
   # Before goupby data pre-processing due to different used languages for each post
   print('Start process posts/comments')
-  munich_data_df_rm_std_author['clean_text'] = munich_data_df_rm_std_author['text'].apply(process, custom_stopwords=custom_stopwords, tagger=hanover_tagger, is_title=False, clean_text=None)
+
+  # Because every comment in the subreddit can be written in a different language, a applying of function process per comment
+  # is needed to select the appropriate stopwords per language (de or eng) and for german the lemmatising using HanTa can be done
+  munich_data_df_rm_std_author['clean_text'] = munich_data_df_rm_std_author['text'].apply(process,
+                                                                                          custom_stopwords=custom_stopwords,
+                                                                                          tagger=hanover_tagger,
+                                                                                          is_title=False,
+                                                                                          clean_text=None
+                                                                                          )
   # # https://stackoverflow.com/questions/74105047/how-to-drop-rows-with-empty-string-values-in-certain-columns
   # # Drop empty `clean_text`
   # munich_data_df_rows_to_drop = munich_data_df_rm_std_author[munich_data_df_rm_std_author['clean_text']==''].index
@@ -391,6 +402,11 @@ def main():
   munich_data_df_rm_std_author.to_csv('Outputs/munich_data_df_rm_std_author.csv', index=False, encoding='utf-8-sig')
   print('End pre-process posts/comments')
 
+  # Creation of data frame group by post_id
+  # The data frame will be grouped by post_id via .groupby
+  # Title and flair will be selected with the first occured element (because every column has the same title/flair until the title/flair will change for new post_id)
+  # The text of every comment for each post_id will be combined via aggregation function 'join_post_id_text'
+  # With reset_index() post_id will be used from index to normal column 
   munich_data_df_groupby_post_id = munich_data_df_rm_std_author.groupby('post_id').agg(
     title=pd.NamedAgg(column='title', aggfunc='first'),
     flair=pd.NamedAgg(column='flair', aggfunc='first'),
@@ -399,6 +415,11 @@ def main():
 
   # Data pre-processing of title
   print('Start pre-process titles')
+  
+  # Applying pre-processing to grouped data
+  # For every column the process function will be applied to the corresponding title grouped by post_id
+  # Because it is not possible to determine the language for every title (due to insufficient length of title), the clean_text
+  # will be submitted as an parameter -> Language determination based on processed clean_text, if based on title is not possible
   munich_data_df_groupby_post_id['clean_title'] = munich_data_df_groupby_post_id.apply(lambda x: process(x['title'],
                                                                                                         custom_stopwords=custom_stopwords,
                                                                                                         tagger=hanover_tagger,
@@ -417,15 +438,11 @@ def main():
   # Drop empty full_text
   munich_data_df_rows_to_drop = munich_data_df_groupby_post_id[munich_data_df_groupby_post_id['full_text'] == ''].index
   munich_data_df_groupby_post_id.drop(munich_data_df_rows_to_drop, inplace=True)
-  # Reset index
+  # Reset index because of previous drop of empty full_text
   munich_data_df_groupby_post_id.reset_index(drop=True, inplace=True)
   
   munich_data_df_groupby_post_id.to_csv(MUNICH_DATA_DF_GROUPBY_POST_ID_PATH, index=False, encoding='utf-8-sig')
-
-  test_load_csv_munich_data_df_groupby_post_id = pd.read_csv(MUNICH_DATA_DF_GROUPBY_POST_ID_PATH)
-  if test_load_csv_munich_data_df_groupby_post_id['full_text'].equals(munich_data_df_groupby_post_id['full_text']):
-    print(f'Fulltext test_load_csv_munich_data_df_groupby_post_id ist gleich munich_data_df_groupby_post_id')
-  
+ 
   print('End pre-process titles')
 
   text_corpus_list_groupby_post_id = munich_data_df_groupby_post_id['full_text'].tolist()
@@ -652,31 +669,31 @@ def main():
 
   # ---------------------------- Plot results ----------------------------------------------------
   # Headings of plots where set blank for including images to text for Finalisierungsphase
-  print('\nAktivsten Nutzer:\n')
+  print('\nMost active authors:\n')
   plot_bar_chart(most_active_authors_df,
                 'Anzahl Posts/Kommentare',
                 'Nutzer'
                 )
 
-  print('\nHäufigsten Flairs:\n')
+  print('\nMost common flairs:\n')
   plot_bar_chart(most_common_flairs_df,
                 'Anzahl Flairs',
                 'Flairs'
                 )
 
-  print('\nErgebnisse TF-IDF und LDA:\n')
+  print('\nResults TF-IDF and LDA:\n')
   plot_top_words(lda_tfidf_model,
                 feature_names_tfidf,
                 N_TOP_WORDS
                 )
   
-  print('\nErgebnisse CountVectorizer und LDA:\n')
+  print('\nResults CountVectorizer and LDA:\n')
   plot_top_words(lda_count_vectorizer_model,
                 feature_names_count_vectorizer,
                 N_TOP_WORDS
                 )
   
-  print('\nErgebnisse LSA:\n')
+  print('\nResults LSA:\n')
   plot_top_words(lsa_model,
                 feature_names_tfidf,
                 N_TOP_WORDS
