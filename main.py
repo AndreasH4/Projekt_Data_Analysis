@@ -258,7 +258,6 @@ def top_words_in_dict_format(lda_model, feature_names, n_top_words):
   return lda_results_json
 
 
-# https://radimrehurek.com/gensim/models/coherencemodel.html
 def top_words_in_list_format(model, feature_names, n_top_words):
   """
   Write top words in list of list of string
@@ -321,7 +320,7 @@ def main():
   2. Get custom stopwords from JSON file
   3. If no munich_reddit_data.csv, retrieve data from Reddit
   4. Pre-Process retrieved data
-  5. Extract most active users and used flairs
+  5. Extract most active users and most common flairs
   6. TF-IDF and LDA
   7. CountVectorizer and LDA
   8. LSA
@@ -373,7 +372,7 @@ def main():
 
   # Read Reddit-Data from csv-file
   munich_data_df = pd.read_csv(MUNICH_DATA_PATH)
-  
+
   # Replace NaN values with empty strings
   munich_data_df['title'] = munich_data_df['title'].fillna('')
   munich_data_df['text'] = munich_data_df['text'].fillna('')
@@ -393,11 +392,11 @@ def main():
                                                                                           is_title=False,
                                                                                           clean_text=None
                                                                                           )
-  # # https://stackoverflow.com/questions/74105047/how-to-drop-rows-with-empty-string-values-in-certain-columns
-  # # Drop empty `clean_text`
-  # munich_data_df_rows_to_drop = munich_data_df_rm_std_author[munich_data_df_rm_std_author['clean_text']==''].index
-  # # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.drop.html
-  # munich_data_df_rm_std_author.drop(munich_data_df_rows_to_drop, inplace=True)
+  # https://stackoverflow.com/questions/74105047/how-to-drop-rows-with-empty-string-values-in-certain-columns
+  # Drop empty `clean_text`
+  munich_data_df_rows_to_drop = munich_data_df_rm_std_author[munich_data_df_rm_std_author['clean_text']==''].index
+  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.drop.html
+  munich_data_df_rm_std_author.drop(munich_data_df_rows_to_drop, inplace=True)
 
   munich_data_df_rm_std_author.to_csv('Outputs/munich_data_df_rm_std_author.csv', index=False, encoding='utf-8-sig')
   print('End pre-process posts/comments')
