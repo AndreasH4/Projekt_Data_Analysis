@@ -41,7 +41,8 @@ LDA_TFIDF_RESULTS_JSON_PATH = 'Outputs/lda_tfidf_results_json.json'
 LDA_TFIDF_RESULTS_LIST_PATH = 'Outputs/lda_tfidf_results_list.json'
 LDA_COUNT_VECTORIZER_RESULTS_JSON_PATH = 'Outputs/lda_count_vectorizer_results_json.json'
 LDA_COUNT_VECTORIZER_RESULTS_LIST_PATH = 'Outputs/lda_count_vectorizer_results_list.json'
-LSA_RESULTS_JSON_PATH = 'Outputs/lsa_results.json'
+LSA_RESULTS_PATH = 'Outputs/lsa_results.json'
+LSA_RESULTS_JSON_PATH = 'Outputs/lsa_results_json.json'
 MOST_ACTIVE_AUTHORS_CSV_PATH = 'Outputs/most_active_authors.csv'
 MOST_COMMON_FLAIRS_CSV_PATH = 'Outputs/most_common_flairs.csv'
 UNIQUE_AUTHORS_CSV_PATH = 'Outputs/unique_authors.csv'
@@ -277,7 +278,7 @@ def top_words_in_list_format(model, feature_names, n_top_words):
 
 
 
-def plot_top_words(model, feature_names, n_top_words):
+def plot_top_words(model, feature_names, n_top_words, vectorizer):
   """
   Plot top words/weights from LDA
   """
@@ -299,7 +300,7 @@ def plot_top_words(model, feature_names, n_top_words):
     )
 
     ax.set_title(f'Thema {topic_idx + 1}', fontdict={'fontsize': 30})
-    ax.set_xlabel('Gewichtung (TF-IDF)', fontsize=20)
+    ax.set_xlabel(f'Gewichtung ({vectorizer})', fontsize=20)
 
     if topic_idx == 0:
       ax.set_ylabel('Wörter', fontsize=20)
@@ -392,10 +393,9 @@ def main():
                                                                                           is_title=False,
                                                                                           clean_text=None
                                                                                           )
-  # https://stackoverflow.com/questions/74105047/how-to-drop-rows-with-empty-string-values-in-certain-columns
+  
   # Drop empty `clean_text`
   munich_data_df_rows_to_drop = munich_data_df_rm_std_author[munich_data_df_rm_std_author['clean_text']==''].index
-  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.drop.html
   munich_data_df_rm_std_author.drop(munich_data_df_rows_to_drop, inplace=True)
 
   munich_data_df_rm_std_author.to_csv('Outputs/munich_data_df_rm_std_author.csv', index=False, encoding='utf-8-sig')
@@ -432,8 +432,6 @@ def main():
   # they can be analysed via LSA and LDA
   munich_data_df_groupby_post_id['full_text'] = (munich_data_df_groupby_post_id['clean_title'] + ' ' + munich_data_df_groupby_post_id['clean_text']).str.strip()
   
-  # https://stackoverflow.com/questions/74105047/how-to-drop-rows-with-empty-string-values-in-certain-columns
-  # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.drop.html
   # Drop empty full_text
   munich_data_df_rows_to_drop = munich_data_df_groupby_post_id[munich_data_df_groupby_post_id['full_text'] == ''].index
   munich_data_df_groupby_post_id.drop(munich_data_df_rows_to_drop, inplace=True)
@@ -582,28 +580,34 @@ def main():
 
   # ---------------------------------- LSA ------------------------------------------------------
 
-  # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.TruncatedSVD.html
   lsa_model = TruncatedSVD(n_components=5, # Number of topics to discover
                           algorithm='randomized', # Randomized algorithm for SVD solver
                           random_state=42, # Fixed parameter to control random number generator used to produce same results accross different calls
                           n_iter=10 # Number of iterations for randomized SVD solver
                           )
   print('Start Training LSA')
-  lsa = lsa_model.fit_transform(model)
+  lsa_model.fit_transform(model)
   print('End Training LSA')
 
+  # Format top words in list format for coherence score
   lsa_results = top_words_in_list_format(lsa_model, feature_names_tfidf, N_TOP_WORDS)
   print(f'\nlsa_results: {lsa_results}\n')
 
+  # Format top words with each weight from each topic as dictionay
+  lsa_results_json = top_words_in_dict_format(lsa_model, feature_names_tfidf, N_TOP_WORDS)
+  print(f'\nlsa_results_json: {lsa_results_json}\n')
+
   # Write results from LSA as json to lsa_results.json
-  with open(LSA_RESULTS_JSON_PATH, 'w') as file:
+  with open(LSA_RESULTS_PATH, 'w') as file:
     json.dump(lsa_results, file, ensure_ascii=False, indent=2)
+
+  with open(LSA_RESULTS_JSON_PATH, 'w') as file:
+    json.dump(lsa_results_json, file, ensure_ascii=False, indent=2)
 
   # ---------------------------- Coherence Score ------------------------------------------------
 
   corpus = []
 
-  # https://radimrehurek.com/gensim/models/coherencemodel.html
   # Create iterable of iterable of str
   documents = [text_corpus.split() for text_corpus in text_corpus_list_groupby_post_id]
 
@@ -683,19 +687,22 @@ def main():
   print('\nResults TF-IDF and LDA:\n')
   plot_top_words(lda_tfidf_model,
                 feature_names_tfidf,
-                N_TOP_WORDS
+                N_TOP_WORDS,
+                'TF-IDF'
                 )
   
   print('\nResults CountVectorizer and LDA:\n')
   plot_top_words(lda_count_vectorizer_model,
                 feature_names_count_vectorizer,
-                N_TOP_WORDS
+                N_TOP_WORDS,
+                'CountVectorizer'
                 )
   
   print('\nResults LSA:\n')
   plot_top_words(lsa_model,
                 feature_names_tfidf,
-                N_TOP_WORDS
+                N_TOP_WORDS,
+                'TF-IDF'
                 )
   return
 
