@@ -52,4 +52,4 @@ CLIENT_SECRET='<your-client-secret>'
 Run the script
 ```python
 python main.py
-`
+```
