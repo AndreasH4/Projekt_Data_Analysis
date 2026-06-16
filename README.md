@@ -49,7 +49,7 @@ CLIENT_ID='<your-client-id>'
 CLIENT_SECRET='<your-client-secret>'
 ```
 
-Run the script
+Run the script (or optionally as a notebook main.ipynb within jupyter lab)
 ```python
 python main.py
 ```
