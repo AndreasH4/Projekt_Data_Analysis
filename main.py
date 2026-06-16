@@ -54,6 +54,7 @@ MUNICH_DATA_DF_GROUPBY_POST_ID_PATH = 'Outputs/munich_data_df_groupby_post_id.cs
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
+nltk.download('punkt_tab')
 
 
 
@@ -329,6 +330,9 @@ def main():
   10. Plot results
   """
 
+  # Create folder for outputs, if not yet present
+  os.makedirs('Outputs', exist_ok=True)
+
   # Initialize HanoverTagger
   hanover_tagger = ht.HanoverTagger('morphmodel_ger.pgz')
 
@@ -393,7 +397,6 @@ def main():
                                                                                           is_title=False,
                                                                                           clean_text=None
                                                                                           )
-  
   # Drop empty `clean_text`
   munich_data_df_rows_to_drop = munich_data_df_rm_std_author[munich_data_df_rm_std_author['clean_text']==''].index
   munich_data_df_rm_std_author.drop(munich_data_df_rows_to_drop, inplace=True)
